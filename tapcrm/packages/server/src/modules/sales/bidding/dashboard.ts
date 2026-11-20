@@ -8,6 +8,7 @@
  *                        current open / triaged inventory.
  */
 
+import { visibilityFilter } from '@tapcrm/authz';
 import type { RequestContext } from '../../../platform/dal/context.js';
 import { db } from '../../../platform/dal/db.js';
 import { OPERATIONAL_TZ } from '../../../platform/time.js';
@@ -137,4 +138,44 @@ export async function poolHealth(ctx: RequestContext): Promise<PoolHealthSnapsho
     triaged24h: triaged,
     timeoutRate,
   };
+}
+
+/** Overview aggregates use the same lead visibility as the Leads list. */
+export async function overviewMetrics(ctx: RequestContext) {
+  const scope = await visibilityFilter(ctx, 'leads:view', 'lead');
+  const [statuses, dailyClaims] = await Promise.all([
+    db.query<{ status: string; count: number; stalled: number }>(ctx, sql`
+      SELECT l.status, count(*)::int AS count,
+             count(*) FILTER (WHERE l.stalled_at IS NOT NULL)::int AS stalled
+        FROM lead l
+       WHERE l.organization_id = ${ctx.organizationId}
+         AND l.status NOT IN ('converted', 'closed_lost')
+         AND ${scope}
+       GROUP BY l.status
+    `),
+    db.query<{ date: string; count: number }>(ctx, sql`
+      WITH calendar AS (
+        SELECT timezone, (now() AT TIME ZONE timezone)::date AS today
+          FROM organization WHERE id = ${ctx.organizationId}
+      ), claims AS (
+        SELECT (d.created_at AT TIME ZONE c.timezone)::date AS day, count(*)::int AS count
+          FROM sales_routing_decision d
+          JOIN lead l ON l.organization_id = d.organization_id AND l.id = d.lead_id
+         CROSS JOIN calendar c
+         WHERE d.organization_id = ${ctx.organizationId}
+           AND d.mode = 'bidding' AND d.reason = 'claim'
+           AND d.created_at >= ((c.today - 5)::timestamp AT TIME ZONE c.timezone)
+           AND d.created_at < ((c.today + 1)::timestamp AT TIME ZONE c.timezone)
+           AND ${scope}
+         GROUP BY 1
+      )
+      SELECT to_char(c.today - days.offset_days, 'YYYY-MM-DD') AS date,
+             coalesce(claims.count, 0) AS count
+        FROM calendar c
+       CROSS JOIN generate_series(5, 0, -1) AS days(offset_days)
+        LEFT JOIN claims ON claims.day = c.today - days.offset_days
+       ORDER BY date
+    `),
+  ]);
+  return { statuses, dailyClaims };
 }

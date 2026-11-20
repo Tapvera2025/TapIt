@@ -653,10 +653,15 @@ async function validatePolicyCeiling(
     );
   }
   const definition = REGISTRY[policy.action];
-  if (!isPositionPolicyGrantable(definition)) {
+  // "Super Admin only" powers may sit on a position, but only the Super Admin
+  // puts them there; someone else editing the position cannot touch them.
+  const superAdmin = globalAccess(ctx.principal);
+  if (!isPositionPolicyGrantable(definition, { superAdmin })) {
     throw new OrganizationValidationError(
       ORGANIZATION_ERROR_CODES.POSITION_POLICY_NOT_GRANTABLE,
-      `Action "${policy.action}" cannot be granted through a position policy`,
+      isPositionPolicyGrantable(definition, { superAdmin: true })
+        ? `Only the Super Admin can give "${actionTitle(policy.action)}" to a position`
+        : `Action "${policy.action}" cannot be granted through a position policy`,
     );
   }
   const domain = definition.domain === 'derived' ? 'people' : definition.domain;

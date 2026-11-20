@@ -125,28 +125,61 @@ export function scopeHint(scope: string): string {
 }
 
 /**
- * Position policies may grant only actions that are both explicitly
- * position-grantable and not reserved for the Super Admin authorization path.
- * This is derived from the canonical registry and is shared by the UI and
- * server-side policy validation.
+ * Powers the Super Admin keeps for themselves even though the registry marks
+ * them position-grantable. Reopening a closed accounting period belongs to the
+ * Super Admin alone (Finance PRD: "exclusive holder of
+ * `accounting:reopen-period` (A4)"), and the accounting service refuses
+ * everyone else, so offering it on a position would be a switch that does
+ * nothing.
  */
-export function isPositionPolicyGrantable(definition: ActionDefinition<Action>): boolean {
+export const SUPER_ADMIN_EXCLUSIVE_ACTIONS: ReadonlySet<Action> = new Set<Action>([
+  'accounting:reopen-period',
+]);
+
+/** Who is editing a position's policy list. */
+export interface PositionPolicyGrantor {
+  /** True for the organization's Super Admin (derived from account type, never stored). */
+  readonly superAdmin: boolean;
+}
+
+const NOT_SUPER_ADMIN: PositionPolicyGrantor = { superAdmin: false };
+
+/** Never on a position, whoever is editing it. */
+function neverOnAPosition(definition: ActionDefinition<Action>): boolean {
   return (
-    definition.grantPolicy.positionGrantable && !definition.grantPolicy.superAdminOnly
+    !definition.grantPolicy.positionGrantable ||
+    SUPER_ADMIN_EXCLUSIVE_ACTIONS.has(definition.action)
   );
 }
 
+/**
+ * Whether `grantor` may put this power on a position's policy list.
+ *
+ *   - `PositionGrantable = no` (and the Super-Admin-exclusive list): never.
+ *   - `SuperAdminOnly = yes`: "Only Super Admin may grant it"
+ *     (AUTHORIZATION.md §6.4), so the Super Admin may, and nobody else.
+ *   - everything else: anyone allowed to edit positions, still bounded by the
+ *     editor's own ceiling on the server.
+ *
+ * Shared by the position editor and the server-side validation so the editor
+ * never offers a switch the server would refuse.
+ */
+export function isPositionPolicyGrantable(
+  definition: ActionDefinition<Action>,
+  grantor: PositionPolicyGrantor = NOT_SUPER_ADMIN,
+): boolean {
+  if (neverOnAPosition(definition)) return false;
+  return !definition.grantPolicy.superAdminOnly || grantor.superAdmin;
+}
+
+/** Why a power is locked for this grantor, or null when they can hand it out. */
 export function protectedCapabilityReason(
   definition: ActionDefinition<Action>,
+  grantor: PositionPolicyGrantor = NOT_SUPER_ADMIN,
 ): string | null {
-  if (!isPositionPolicyGrantable(definition)) {
-    if (
-      definition.grantPolicy.positionGrantable &&
-      definition.grantPolicy.superAdminOnly
-    ) {
-      return 'Only the Super Admin can do this.';
-    }
+  if (isPositionPolicyGrantable(definition, grantor)) return null;
+  if (neverOnAPosition(definition)) {
     return 'Only the Super Admin can do this; it cannot be given to a position.';
   }
-  return null;
+  return 'Only the Super Admin can grant this.';
 }

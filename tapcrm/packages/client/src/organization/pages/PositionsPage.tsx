@@ -6,6 +6,7 @@ import {
   REGISTRY,
   actionScopes,
   isPositionPolicyGrantable,
+  type PositionPolicyGrantor,
   type Action,
 } from '@tapcrm/contracts';
 import { getCompanyIdentity } from '../../company/api/companyApi.js';
@@ -112,6 +113,8 @@ export function PositionsPage(): React.JSX.Element {
     useState<OrganizationPosition | null>(null);
   /** The parts of TapCRM this company uses; null until known (then everything is listed). */
   const [enabledModules, setEnabledModules] = useState<ReadonlySet<string> | null>(null);
+  // "Super Admin only" powers are offered only when the Super Admin is editing.
+  const [grantor, setGrantor] = useState<PositionPolicyGrantor>({ superAdmin: false });
   const [lastCodeByDept, setLastCodeByDept] = useState<Record<string, string>>({});
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -156,7 +159,10 @@ export function PositionsPage(): React.JSX.Element {
   useEffect(() => {
     void loadDepartments();
     getCompanyIdentity()
-      .then((identity) => setEnabledModules(new Set(identity.enabledModules)))
+      .then((identity) => {
+        setEnabledModules(new Set(identity.enabledModules));
+        setGrantor({ superAdmin: identity.user.accountType === 'super-admin' });
+      })
       .catch(() => setEnabledModules(null));
   }, []);
   useEffect(() => {
@@ -563,7 +569,7 @@ export function PositionsPage(): React.JSX.Element {
       setPolicyImpact(
         await organizationApi.previewPositionPolicies(
           selectedPolicyPosition.id,
-          positionPolicyPayload(policies),
+          positionPolicyPayload(policies, grantor),
         ),
       );
     } catch (cause) {
@@ -579,7 +585,7 @@ export function PositionsPage(): React.JSX.Element {
     try {
       await organizationApi.updatePositionPolicies(
         selectedPolicyPosition.id,
-        positionPolicyPayload(policies),
+        positionPolicyPayload(policies, grantor),
       );
       setMessage(`Policies saved for ${selectedPolicyPosition.name}.`);
       closePolicies();
@@ -874,6 +880,7 @@ export function PositionsPage(): React.JSX.Element {
                 policies={policies}
                 baseline={policyBaseline}
                 enabledModules={enabledModules}
+                grantor={grantor}
                 onChange={updatePolicy}
                 impact={policyImpact}
               />
@@ -902,10 +909,10 @@ function nameOfParent(
     ? 'Super Admin'
     : (positions.find((position) => position.id === id)?.name ?? 'another position');
 }
-function positionPolicyPayload(policies: PositionPolicy[]) {
+function positionPolicyPayload(policies: PositionPolicy[], grantor: PositionPolicyGrantor) {
   return policies.flatMap((policy) => {
     const definition = REGISTRY[policy.action as Action];
-    return definition && isPositionPolicyGrantable(definition)
+    return definition && isPositionPolicyGrantable(definition, grantor)
       ? [stripPolicy(policy)]
       : [];
   });

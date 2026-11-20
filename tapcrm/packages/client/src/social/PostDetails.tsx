@@ -109,11 +109,11 @@ export function PostDetails({
               <div key={item.id} className="py-3 first:pt-0 last:pb-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <PlatformMark platform={item.platform} small />
-                  <span className="flex-1 text-sm font-semibold">{item.accountName}</span>
+                  <span className="social-row-copy text-sm font-semibold">{item.accountName}</span>
                   <PostStatus status={displayDestinationStatus(item, Date.now())} />
                 </div>
                 {item.caption !== post.caption && (
-                  <p className="mt-2 whitespace-pre-wrap text-sm text-app-muted">
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-app-muted [overflow-wrap:anywhere]">
                     {item.caption}
                   </p>
                 )}
@@ -181,14 +181,14 @@ export function PostDetails({
         {canApprove &&
           getIdentitySessionSnapshot().principalId !== post.createdBy &&
           post.status === 'pending_approval' && (
-            <div className="space-y-3 rounded-xl border border-app-border p-4">
+            <div className="social-form-stack rounded-xl border border-app-border p-4">
               <Field
                 label="Reviewer comment"
                 value={comment}
                 onChange={setComment}
                 placeholder="Add feedback for the author"
               />
-              <div className="flex flex-wrap gap-2">
+              <div className="social-actions">
                 <Button disabled={busy} onClick={() => void act('approve')}>
                   Approve
                 </Button>
@@ -203,14 +203,14 @@ export function PostDetails({
             </div>
           )}
         {canPublish && eligible && (
-          <div className="space-y-3 rounded-xl border border-app-border p-4">
+          <div className="social-form-stack rounded-xl border border-app-border p-4">
             <Field
               label={`Publish at · ${timezone}`}
               type="datetime-local"
               value={schedule}
               onChange={setSchedule}
             />
-            <div className="flex flex-wrap gap-2">
+            <div className="social-actions">
               <Button
                 kind="secondary"
                 disabled={busy || !schedule}
@@ -227,7 +227,7 @@ export function PostDetails({
           </div>
         )}
         {canManage && (
-          <div className="flex flex-wrap gap-2">
+          <div className="social-actions">
             {editable && (
               <Button kind="secondary" disabled={busy} onClick={() => onEdit(post)}>
                 Edit post
@@ -261,7 +261,7 @@ export function PostDetails({
         {confirmCancel && (
           <Notice>
             <p>Cancel this post and its unpublished destinations?</p>
-            <div className="mt-3 flex gap-2">
+            <div className="social-actions mt-3">
               <Button kind="danger" disabled={busy} onClick={() => void act('cancel')}>
                 Confirm cancellation
               </Button>

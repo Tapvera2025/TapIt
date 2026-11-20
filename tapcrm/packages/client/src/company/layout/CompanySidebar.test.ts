@@ -23,7 +23,13 @@ describe('CompanySidebar - Recruitment Dropdown', () => {
     positionCode: 'HR-MGR',
   };
 
-  it('renders Recruitment dropdown expanded when current route is /company/recruitment', () => {
+  // Recruitment powers held by an HR position at department reach.
+  const recruiter = [
+    { action: 'recruitment:view-metrics', scope: 'department' },
+    { action: 'recruitment:view-candidates', scope: 'department' },
+  ];
+
+  it('renders Recruitment dropdown expanded on /company/recruitment with only the tabs the position holds', () => {
     const html = renderToStaticMarkup(
       React.createElement(
         ThemeProvider,
@@ -33,8 +39,7 @@ describe('CompanySidebar - Recruitment Dropdown', () => {
           identity: baseIdentity,
           organizationName: 'Test Corp',
           accountType: 'employee',
-          isHr: true,
-          hasRecruitment: true,
+          capabilities: recruiter,
           onNavigate: () => {},
           onLogout: () => {},
           open: true,
@@ -43,26 +48,26 @@ describe('CompanySidebar - Recruitment Dropdown', () => {
       )
     );
 
-    // The Recruitment group is open on a recruitment route and offers one way
-    // in; its pages (Requisitions, Resume Inbox, ...) are tabs on the page.
     expect(html).toMatch(/aria-expanded="true"[^>]*>[\s\S]*?Recruitment/);
     expect(html).toMatch(/aria-current="page"[\s\S]*?Overview/);
+    expect(html).toContain('Candidates');
+    // Powers the position does not hold are not offered.
     expect(html).not.toContain('Resume Inbox');
     expect(html).not.toContain('Requisitions');
+    expect(html).not.toContain('Offers');
   });
 
-  it('keeps one sidebar entry for each module whose pages are tabs', () => {
+  it('shows nothing for a department name alone: an "HR" employee without powers gets no Recruitment', () => {
     const html = renderToStaticMarkup(
       React.createElement(
         ThemeProvider,
         null,
         React.createElement(CompanySidebar, {
           pathname: '/company/dashboard',
-          identity: { ...baseIdentity, accountType: 'super-admin' },
+          identity: baseIdentity,
           organizationName: 'Test Corp',
-          accountType: 'super-admin',
-          isHr: true,
-          hasRecruitment: true,
+          accountType: 'employee',
+          capabilities: [],
           onNavigate: () => {},
           onLogout: () => {},
           open: true,
@@ -70,9 +75,8 @@ describe('CompanySidebar - Recruitment Dropdown', () => {
         }),
       ),
     );
-    for (const group of ['Recruitment', 'Identity &amp; Access']) expect(html).toContain(group);
+    expect(html).not.toContain('Recruitment');
     expect(html).toContain('Sessions &amp; Devices');
-    expect(html).not.toContain('Access Explorer');
   });
 
   it('renders Recruitment dropdown collapsed when current route is outside recruitment', () => {
@@ -85,8 +89,7 @@ describe('CompanySidebar - Recruitment Dropdown', () => {
           identity: baseIdentity,
           organizationName: 'Test Corp',
           accountType: 'employee',
-          isHr: true,
-          hasRecruitment: true,
+          capabilities: recruiter,
           onNavigate: () => {},
           onLogout: () => {},
           open: true,
@@ -97,6 +100,7 @@ describe('CompanySidebar - Recruitment Dropdown', () => {
 
     // Dropdown button should have aria-expanded="false"
     expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('Recruitment');
     // Child items should NOT be present when collapsed
     expect(html).not.toContain('Resume Inbox');
     expect(html).not.toContain('Candidates');
@@ -138,8 +142,6 @@ describe('CompanySidebar - Recruitment Dropdown', () => {
           identity: { ...baseIdentity, accountType: 'super-admin' },
           organizationName: 'Test Corp',
           accountType: 'super-admin',
-          canViewLeads: true,
-          canViewImports: true,
           onNavigate: () => {},
           onLogout: () => {},
           open: true,
@@ -162,7 +164,6 @@ describe('CompanySidebar - Recruitment Dropdown', () => {
           identity: { ...baseIdentity, accountType: 'super-admin' },
           organizationName: 'Test Corp',
           accountType: 'super-admin',
-          canViewLeads: true,
           onNavigate: () => {},
           onLogout: () => {},
           open: true,

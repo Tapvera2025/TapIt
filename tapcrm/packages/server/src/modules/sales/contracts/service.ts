@@ -16,6 +16,7 @@
 
 import type { Resource } from '@tapcrm/authz';
 import { ApplicationError } from '../../../errors.js';
+import { notifyDealMilestone } from '../deals/notifications.js';
 import type { RequestContext } from '../../../platform/dal/context.js';
 import { db } from '../../../platform/dal/db.js';
 import { sql } from '../../../platform/dal/sql.js';
@@ -285,6 +286,7 @@ export async function recordSignature(
       { state: 'sent' },
       { state: 'signed', checksum: input.checksum },
     );
+    await notifyDealMilestone(tx, ctx, deal, 'contractSigned');
   });
 
   const updated = await findContract(ctx, contractId);

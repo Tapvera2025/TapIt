@@ -13,6 +13,8 @@ import type {
   ReportingManagerCandidate,
 } from '../types/index.js';
 
+type ProposalBranding = { name: string; logoDataUrl: string | null };
+
 const request = <T>(path: string, init?: RequestInit) => identityRequest<T>(path, init);
 const json = (body: unknown): RequestInit => ({
   method: 'POST',
@@ -20,6 +22,9 @@ const json = (body: unknown): RequestInit => ({
 });
 
 export const organizationApi = {
+  proposalBranding: () => request<ProposalBranding>('/api/org/proposal-branding'),
+  updateProposalBranding: (body: { logoDataUrl: string | null }) =>
+    request<ProposalBranding>('/api/org/proposal-branding', { method: 'PUT', body: JSON.stringify(body) }),
   currencySettings: () => request<{ supportedCurrencies: string[]; defaultCurrency: string }>('/api/org/currency-settings'),
   updateCurrencySettings: (body: { supportedCurrencies: string[]; defaultCurrency: string }) =>
     request<{ supportedCurrencies: string[]; defaultCurrency: string }>('/api/org/currency-settings', { method: 'PUT', body: JSON.stringify(body) }),

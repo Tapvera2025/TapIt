@@ -17,6 +17,7 @@ export interface AddTodoModalProps {
   readonly onSubmit: (data: CreateTodoPayload | UpdateTodoPayload) => Promise<void>;
   readonly initialTodo?: MyTodo | null;
   readonly isSubmitting?: boolean;
+  readonly submitError?: string | undefined;
 }
 
 function getTodayString(): string {
@@ -33,6 +34,7 @@ export function AddTodoModal({
   onSubmit,
   initialTodo = null,
   isSubmitting = false,
+  submitError,
 }: AddTodoModalProps): React.JSX.Element | null {
   const isEditing = Boolean(initialTodo);
 
@@ -124,7 +126,7 @@ export function AddTodoModal({
         }}
         className="space-y-4"
       >
-        {validationError && <ErrorToast message={validationError} />}
+        {(validationError || submitError) && <ErrorToast message={validationError || submitError || ''} />}
 
         {/* Title */}
         <label className="block text-xs font-semibold text-app-muted">

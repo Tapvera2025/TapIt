@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { Button } from '../../../ui/index.js';
+import { Button, Icon } from '../../../ui/index.js';
 import { claimBidPoolLead, passBidPoolLead, type MaskedBidCard } from './api.js';
 import {
   classifyClaimError,
@@ -21,11 +21,14 @@ export interface BidCardCallbacks {
   readonly onLost: (leadId: string, kind: 'already_claimed' | 'not_eligible' | 'other', message: string) => void;
 }
 
-export function BidCard({ card, callbacks, now = new Date() }: {
+export function BidCard({ card, callbacks, now = new Date(), compact = false, row = false, canClaim = true }: {
   card: MaskedBidCard;
   callbacks: BidCardCallbacks;
   /** Injectable for tests. */
   now?: Date;
+  compact?: boolean;
+  row?: boolean;
+  canClaim?: boolean;
 }): React.JSX.Element {
   const titleId = useId();
   const [busy, setBusy] = useState(false);
@@ -74,6 +77,58 @@ export function BidCard({ card, callbacks, now = new Date() }: {
       setBusy(false);
       setPassing(false);
     }
+  }
+
+  if (compact) {
+    const urgent = aging.severity === 'hot';
+    return (
+      <article aria-labelledby={titleId} className="sales-overview-action-row">
+        <span className="sales-overview-row-icon bg-app-accent/12 text-app-accent">
+          <Icon name="radio" />
+        </span>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <h3 id={titleId} className="font-semibold">Inbound enquiry · {card.maskedName || card.maskedPhone}</h3>
+            {urgent && <span className="sales-overview-urgent">Urgent</span>}
+          </div>
+          <p className="mt-0.5 text-sm text-app-muted">
+            {[card.source, card.campaign, card.budgetBracket].filter(Boolean).join(' · ')}
+          </p>
+          <p className="mt-1 text-xs text-app-muted">{aging.severity === 'expired' ? 'Offer expired' : `${aging.label} left`}</p>
+        </div>
+        {canClaim && (
+          <Button className="sales-overview-row-action" onClick={() => void onAccept()} disabled={busy || aging.severity === 'expired'}>
+            {busy ? 'Claiming…' : 'Claim Lead'}
+          </Button>
+        )}
+      </article>
+    );
+  }
+
+  if (row) {
+    return (
+      <article aria-labelledby={titleId} className="bid-pool-row" data-severity={aging.severity}>
+        <div className="bid-pool-row-lead">
+          <span className="bid-pool-row-icon"><Icon name="radio" className="size-5" /></span>
+          <div className="min-w-0">
+            <h3 id={titleId} className="truncate font-semibold">{card.maskedName || 'Inbound enquiry'}</h3>
+            <p className="mt-1 truncate text-sm text-app-muted">{[card.maskedPhone, card.location, card.campaign].filter(Boolean).join(' · ')}</p>
+          </div>
+        </div>
+        <div className="bid-pool-row-cell"><span className="bid-pool-mobile-label">Source</span><span>{card.source || 'Inbound'}</span></div>
+        <div className="bid-pool-row-cell bid-pool-row-status">
+          <span className="bid-pool-new-pill">New</span>
+          <span className={`bid-pool-live-pill ${aging.severity === 'expired' ? 'is-urgent' : ''}`}>Live Pool · {aging.label} left</span>
+        </div>
+        <div className="bid-pool-row-cell"><span className="bid-pool-mobile-label">Owner</span><span className="text-app-muted italic">Unclaimed</span></div>
+        <div className="bid-pool-row-cell"><span className="bid-pool-mobile-label">Budget</span><span>{card.budgetBracket ?? '—'}</span></div>
+        <div className="bid-pool-row-actions">
+          {canClaim && <Button onClick={() => void onAccept()} disabled={busy || aging.severity === 'expired'}>{busy ? 'Claiming…' : 'Claim'}</Button>}
+          <Button kind="secondary" onClick={() => setPassing(true)} disabled={busy}>Pass</Button>
+        </div>
+        {passing && <div className="bid-pool-row-pass"><PassReasonPicker onCancel={() => setPassing(false)} onConfirm={(reason) => void onConfirmPass(reason)} busy={busy} /></div>}
+      </article>
+    );
   }
 
   return (

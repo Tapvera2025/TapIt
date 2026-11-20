@@ -1,0 +1,202 @@
+.sales-workspace :where(.ui-card) {
+  border-color: var(--app-border);
+  border-radius: 1.25rem;
+  background: var(--app-surface);
+}
+
+.sales-workspace :where(.ui-page-header) {
+  border-color: var(--app-border);
+  background: var(--app-surface);
+}
+
+.sales-workspace :where(table thead) {
+  background-color: var(--app-surface-raised);
+}
+
+.sales-work-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
+  gap: 0.75rem;
+}
+
+.sales-work-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 5rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--app-border);
+  border-radius: 1rem;
+  background: var(--app-surface);
+}
+
+.sales-work-summary-item:hover {
+  border-color: var(--app-accent);
+}
+
+.sales-work-panel.ui-card {
+  padding: clamp(1rem, 2.15vw, 1.625rem);
+}
+
+.sales-work-icon {
+  display: grid;
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border-radius: 0.75rem;
+  color: color-mix(in srgb, var(--app-accent) 75%, var(--app-foreground));
+  background: color-mix(in srgb, var(--app-accent) 12%, var(--app-surface));
+}
+
+.sales-work-icon[data-urgent='true'] {
+  color: color-mix(in srgb, var(--app-danger) 75%, var(--app-foreground));
+  background: color-mix(in srgb, var(--app-danger) 12%, var(--app-surface));
+}
+
+.sales-work-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding-block: 0.85rem;
+}
+
+.sales-work-row:last-child {
+  padding-bottom: 0;
+}
+
+@media (max-width: 34rem) {
+  .sales-work-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .sales-work-row > .ui-button {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+.sales-handover-summary,
+.sales-handover-detail.ui-card,
+.sales-record-card.ui-card {
+  padding: clamp(1rem, 2.15vw, 1.75rem);
+}
+
+.sales-handover-summary {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--app-border);
+  border-radius: 1.25rem;
+  background: var(--app-surface);
+  text-align: left;
+  transition: background-color 150ms, border-color 150ms;
+}
+
+.sales-handover-summary:hover,
+.sales-handover-summary[aria-pressed='true'] {
+  border-color: var(--app-accent);
+}
+
+.sales-handover-summary[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--app-accent) 6%, var(--app-surface));
+}
+
+.sales-record-milestones.ui-card {
+  padding: 0;
+}
+
+.sales-record-action {
+  display: flex;
+  width: 100%;
+  min-height: 3rem;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 0.4rem;
+  padding: 0.55rem;
+  text-align: left;
+  font-weight: 600;
+}
+
+.sales-record-action:hover,
+.sales-record-call:hover {
+  background: var(--app-surface-raised);
+}
+
+.sales-record-action svg,
+.sales-record-call svg {
+  color: var(--app-accent);
+}
+
+.sales-record-call {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--app-border);
+  border-radius: 0.65rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+
+.sales-record-alert {
+  border: 1px solid color-mix(in srgb, var(--color-amber-500) 45%, var(--app-border));
+  border-radius: 1.25rem;
+  padding: clamp(1rem, 2.15vw, 1.5rem);
+  background: color-mix(in srgb, var(--color-amber-500) 14%, var(--app-surface));
+  color: var(--app-foreground);
+}
+
+.sales-queue-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.sales-queue-table :is(th, td) {
+  padding: 0.9rem clamp(0.75rem, 1.65vw, 1.4rem);
+}
+
+.sales-queue-table thead {
+  color: var(--app-muted);
+  background: var(--app-surface-raised);
+  font-size: 0.72rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.sales-queue-table tbody tr {
+  border-top: 1px solid var(--app-border);
+}
+
+.sales-queue-table tbody tr:hover {
+  background: color-mix(in srgb, var(--app-accent) 3%, var(--app-surface));
+}
+
+.sales-queue-id,
+.sales-queue-chip,
+.sales-queue-state {
+  display: inline-block;
+  border-radius: 0.55rem;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.sales-queue-id,
+.sales-queue-chip {
+  background: var(--app-surface-raised);
+  color: var(--app-muted);
+}
+
+.sales-queue-id {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.sales-queue-state {
+  background: color-mix(in srgb, var(--app-accent) 12%, var(--app-surface));
+  color: color-mix(in srgb, var(--app-accent) 65%, var(--app-foreground));
+}

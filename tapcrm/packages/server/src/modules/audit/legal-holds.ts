@@ -1,5 +1,5 @@
 import { globalAccess } from '@tapcrm/contracts';
-import { AuthorizationError, MATCH_NOTHING, type Resource, type SqlFragment } from '@tapcrm/authz';
+import { AuthorizationError, MATCH_NOTHING, effectivePolicy, type Resource, type SqlFragment } from '@tapcrm/authz';
 import { db, type Tx } from '../../platform/dal/db.js';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { sql } from '../../platform/dal/sql.js';
@@ -54,10 +54,19 @@ export function legalHoldAccountType(holdType: LegalHoldType): 'employee' | 'cli
   return holdType === 'user' ? 'employee' : holdType === 'client' ? 'client' : null;
 }
 
-function assertSuperAdmin(ctx: RequestContext): void {
-  if (!globalAccess(ctx.principal)) {
-    throw new AuthorizationError('audit:manage-holds', 'not_allowed', 'Only Super Admin can manage legal holds.');
-  }
+/**
+ * Only the Super Admin may grant `audit:manage-holds`; whoever holds it
+ * (the Super Admin, or a position the Super Admin gave it to) manages holds.
+ */
+async function assertLegalHoldManager(ctx: RequestContext): Promise<void> {
+  if (globalAccess(ctx.principal)) return;
+  const policy = await effectivePolicy(ctx, 'audit:manage-holds');
+  if (policy?.allowed) return;
+  throw new AuthorizationError(
+    'audit:manage-holds',
+    'not_allowed',
+    'Managing legal holds needs the legal hold power, which only the Super Admin can grant.',
+  );
 }
 
 function holdRow(row: LegalHoldRow): LegalHold {
@@ -104,7 +113,7 @@ async function validateTarget(ctx: RequestContext, input: LegalHoldInput): Promi
 }
 
 export async function createLegalHold(ctx: RequestContext, input: LegalHoldInput): Promise<LegalHold> {
-  assertSuperAdmin(ctx);
+  await assertLegalHoldManager(ctx);
   if (input.holdType !== 'date-range' && input.targetId === null) throw new Error('A target is required for this legal hold.');
   if (input.holdType === 'date-range' && (input.startsAt === null || input.endsAt === null || input.endsAt < input.startsAt)) {
     throw new Error('A date-range hold requires an ordered start and end date.');
@@ -136,7 +145,7 @@ export async function createLegalHold(ctx: RequestContext, input: LegalHoldInput
 }
 
 export async function listLegalHolds(ctx: RequestContext, status: LegalHoldStatus | 'all' = 'active'): Promise<{ holds: LegalHold[] }> {
-  assertSuperAdmin(ctx);
+  await assertLegalHoldManager(ctx);
   const rows = await db.query<LegalHoldRow>(ctx, sql`
     ${selectHold}
     WHERE organization_id = ${ctx.organizationId}
@@ -148,7 +157,7 @@ export async function listLegalHolds(ctx: RequestContext, status: LegalHoldStatu
 
 /** Tenant-scoped labels for the hold form; IDs remain an API implementation detail. */
 export async function listLegalHoldTargets(ctx: RequestContext): Promise<{ targets: LegalHoldTarget[] }> {
-  assertSuperAdmin(ctx);
+  await assertLegalHoldManager(ctx);
   const rows = await db.query<LegalHoldTarget>(ctx, sql`
     SELECT id,
            CASE WHEN account_type = 'client' THEN 'client' ELSE 'user' END AS kind,
@@ -172,7 +181,7 @@ export async function loadLegalHoldResource(ctx: RequestContext, id: string): Pr
 }
 
 export async function releaseLegalHold(ctx: RequestContext, id: string, releaseReason: string | null): Promise<LegalHold> {
-  assertSuperAdmin(ctx);
+  await assertLegalHoldManager(ctx);
   return db.transaction(ctx, async (tx) => {
     const existing = await tx.maybeOne<LegalHoldRow>(sql`
       ${selectHold}

@@ -13,7 +13,7 @@ import {
   type Principal,
   type Scope,
 } from '@tapcrm/contracts';
-import { authorize, effectivePolicy } from '@tapcrm/authz';
+import { authorize, effectivePolicy, visibilityFilter } from '@tapcrm/authz';
 import type { RequestContext } from '../../platform/dal/context.js';
 import { scopeResolver } from '../../platform/authz-adapter.js';
 import { db } from '../../platform/dal/db.js';
@@ -688,13 +688,18 @@ export async function getRoleChangeRequests(
   ctx: RequestContext,
   status: 'pending' | 'approved' | 'rejected' | 'all' = 'pending',
 ): Promise<{ requests: readonly RoleChangeRequestView[] }> {
-  if (!globalAccess(ctx.principal)) {
-    throw new AccessValidationError(
-      ACCESS_ERROR_CODES.ROLE_CHANGE_NOT_AUTHORIZED,
-      'Only the organization Super Admin can view role-change requests',
-    );
+  if (globalAccess(ctx.principal)) {
+    const rows = await listRoleChangeRequests(ctx, status);
+    return { requests: rows.map(roleChangeRequestView) };
   }
-  const rows = await listRoleChangeRequests(ctx, status);
+  // Deciding role changes is "Super Admin only" to grant, not to hold: a
+  // position the Super Admin gave it to sees the requests inside its reach.
+  await assertRoleChangeDecider(ctx, 'Viewing role-change requests needs the power to decide them');
+  const rows = await listRoleChangeRequests(
+    ctx,
+    status,
+    await visibilityFilter(ctx, 'access:decide-role-change'),
+  );
   return { requests: rows.map(roleChangeRequestView) };
 }
 
@@ -825,17 +830,25 @@ export async function requestRoleChange(
   });
 }
 
+/**
+ * `access:decide-role-change` may only be granted by the Super Admin, but once
+ * granted (to a position or as an override) its holder decides requests in
+ * their reach. The route already authorized the action against the request;
+ * this keeps direct service callers to the same rule.
+ */
+async function assertRoleChangeDecider(ctx: RequestContext, message: string): Promise<void> {
+  const policy = await effectivePolicy(ctx, 'access:decide-role-change');
+  if (policy?.allowed) return;
+  throw new AccessValidationError(ACCESS_ERROR_CODES.ROLE_CHANGE_NOT_AUTHORIZED, message);
+}
+
 export async function decideRoleChange(
   ctx: RequestContext,
   requestId: string,
   input: { readonly approved: boolean; readonly reason: string },
 ): Promise<{ id: string; status: 'approved' | 'rejected' }> {
-  if (!globalAccess(ctx.principal)) {
-    throw new AccessValidationError(
-      ACCESS_ERROR_CODES.ROLE_CHANGE_NOT_AUTHORIZED,
-      'Only the organization Super Admin can decide a role change',
-    );
-  }
+  const superAdmin = globalAccess(ctx.principal);
+  if (!superAdmin) await assertRoleChangeDecider(ctx, 'Deciding a role change needs the power to decide them');
   const reason = input.reason.trim();
   if (reason === '') throw new AccessValidationError(ACCESS_ERROR_CODES.ROLE_CHANGE_REASON_REQUIRED, 'A decision requires a reason');
   return db.transaction(ctx, async (tx) => {
@@ -845,6 +858,9 @@ export async function decideRoleChange(
     }
     if (request.requestedBy === ctx.principal.id) {
       throw new AccessValidationError(ACCESS_ERROR_CODES.ROLE_CHANGE_SELF, 'The requester cannot decide their own role change');
+    }
+    if (!superAdmin && request.subjectUserId === ctx.principal.id) {
+      throw new AccessValidationError(ACCESS_ERROR_CODES.ROLE_CHANGE_SELF, 'You cannot decide a change to your own position');
     }
     const status = input.approved ? 'approved' : 'rejected';
     if (!input.approved) {
@@ -862,6 +878,18 @@ export async function decideRoleChange(
     const position = await findPositionForRoleChange(tx, ctx.organizationId, request.toPositionId);
     if (position === null || position.status !== 'active') {
       throw new AccessValidationError(ACCESS_ERROR_CODES.ROLE_CHANGE_POSITION_INVALID, 'Target position is invalid or inactive');
+    }
+    // Someone deciding on the Super Admin's behalf can only place people below
+    // themselves, the same seniority rule that bounds delegation (PRD §4.6).
+    if (
+      !superAdmin &&
+      ctx.principal.accountType === 'employee' &&
+      position.organizationalLevel >= ctx.principal.organizationalLevel
+    ) {
+      throw new AccessValidationError(
+        ACCESS_ERROR_CODES.ROLE_CHANGE_NOT_AUTHORIZED,
+        'You can only approve a move into a position below your own',
+      );
     }
     const teamId = await resolveRoleChangeTeam(
       tx,

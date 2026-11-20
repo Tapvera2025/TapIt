@@ -7,6 +7,7 @@ import { platformDb } from '../../../../platform/dal/db.js';
 import { closePools } from '../../../../platform/dal/pool.js';
 import { sql } from '../../../../platform/dal/sql.js';
 import { __resetRateLimits } from '../../../../platform/security/rate-limit.js';
+import { dispatchOrganization } from '../../../notifications/facade.js';
 import { createDeal } from '../../deals/service.js';
 import {
   createDraft,
@@ -19,6 +20,7 @@ import {
   acceptProposal,
   PortalNotFoundError,
   PortalRateLimitedError,
+  recordQuestion,
   viewProposal,
 } from './service.js';
 
@@ -104,9 +106,20 @@ async function createPublishedCommercials(): Promise<{ dealId: string; commercia
   return { dealId: deal.id, commercialsId: draft.id };
 }
 
-async function issueLink(commercialsId: string): Promise<{ rawToken: string; tokenId: string }> {
-  const share = await createShareLink(ctxFor(superAdmin(SUPER_ADMIN)), commercialsId);
+async function issueLink(commercialsId: string, issuer = superAdmin(SUPER_ADMIN)): Promise<{ rawToken: string; tokenId: string }> {
+  const share = await createShareLink(ctxFor(issuer), commercialsId);
   return { rawToken: share.rawToken, tokenId: share.tokenId };
+}
+
+async function proposalNotifications(commercialsId: string) {
+  await dispatchOrganization(ORG);
+  return platformDb.query<{ recipientId: string; type: string; body: string; link: string }>(
+    'migration',
+    'read proposal notification deliveries',
+    sql`SELECT recipient_id AS "recipientId", type, body, link FROM notification
+         WHERE organization_id = ${ORG} AND metadata->>'commercialsId' = ${commercialsId}
+         ORDER BY recipient_id`,
+  );
 }
 
 describe.skipIf(!enabled)('sales proposals portal (PostgreSQL)', () => {
@@ -151,6 +164,9 @@ describe.skipIf(!enabled)('sales proposals portal (PostgreSQL)', () => {
   });
 
   afterAll(async () => {
+    await asOwner('cleanup deliveries',     sql`DELETE FROM notification_delivery WHERE organization_id = ${ORG}`);
+    await asOwner('cleanup notifications',  sql`DELETE FROM notification          WHERE organization_id = ${ORG}`);
+    await asOwner('cleanup notification outbox', sql`DELETE FROM notification_outbox WHERE organization_id = ${ORG}`);
     await asOwner('cleanup audit outbox',   sql`DELETE FROM audit_outbox            WHERE organization_id = ${ORG}`);
     await asOwner('cleanup tokens',         sql`DELETE FROM proposal_portal_token   WHERE organization_id = ${ORG}`);
     await asOwner('cleanup items',          sql`DELETE FROM commercials_item        WHERE organization_id = ${ORG}`);
@@ -240,8 +256,8 @@ describe.skipIf(!enabled)('sales proposals portal (PostgreSQL)', () => {
   });
 
   it('acceptProposal records evidence; replay returns the same acceptedAt (idempotent)', async () => {
-    const { commercialsId } = await createPublishedCommercials();
-    const { rawToken } = await issueLink(commercialsId);
+    const { dealId, commercialsId } = await createPublishedCommercials();
+    const { rawToken } = await issueLink(commercialsId, employee(AGENT));
 
     const first = await acceptProposal(rawToken, {}, META);
     expect(first.alreadyAccepted).toBe(false);
@@ -252,6 +268,10 @@ describe.skipIf(!enabled)('sales proposals portal (PostgreSQL)', () => {
     expect(replay.alreadyAccepted).toBe(true);
     expect(replay.acceptedAt.getTime()).toBe(first.acceptedAt.getTime());
     expect(replay.pdfChecksum).toBe(first.pdfChecksum);
+
+    expect(await proposalNotifications(commercialsId)).toEqual([AGENT, SUPER_ADMIN].sort().map((recipientId) =>
+      expect.objectContaining({ recipientId, type: 'proposal.accepted', link: `/company/sales/deals/${dealId}/proposals?version=${commercialsId}` }),
+    ));
 
     const stored = await asOwner(
       'read accepted row',
@@ -275,6 +295,21 @@ describe.skipIf(!enabled)('sales proposals portal (PostgreSQL)', () => {
       name: 'PortalGoneError',
       details: { reason: 'rejected' },
     });
+    expect(await proposalNotifications(commercialsId)).toEqual([
+      expect.objectContaining({ recipientId: SUPER_ADMIN, type: 'proposal.accepted' }),
+    ]);
+  });
+
+  it('alerts the issuer and Super Admin when the customer requests changes', async () => {
+    const { commercialsId } = await createPublishedCommercials();
+    const { rawToken } = await issueLink(commercialsId, employee(AGENT));
+    const comment = 'Please revise the delivery date.';
+
+    await recordQuestion(rawToken, { comment }, META);
+
+    expect(await proposalNotifications(commercialsId)).toEqual([AGENT, SUPER_ADMIN].sort().map((recipientId) =>
+      expect.objectContaining({ recipientId, type: 'proposal.changes_requested', body: comment }),
+    ));
   });
 
   it('rate limit per token breaks at 31st request; no DB write for the overflow', async () => {

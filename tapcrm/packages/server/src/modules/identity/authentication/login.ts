@@ -9,6 +9,7 @@ import { recordSecurityEvent } from '../security/events.js';
 import { enforceGeofencedLogin } from '../geofence/service.js';
 import { createIdentityContext } from './principal.js';
 import { sql } from '../../../platform/dal/sql.js';
+import { NOTIFICATION_TYPES, clip, notify } from '../../notifications/facade.js';
 
 export async function login(input: { email: string; password: string; deviceLabel?: string; ip: string | null; userAgent: string | null; countryCode?: string | null; latitude?: number; longitude?: number; accuracyMetres?: number | null }) {
   await assertLoginAllowed(input.email, input.ip);
@@ -55,7 +56,8 @@ export async function login(input: { email: string; password: string; deviceLabe
     ...(input.accuracyMetres === undefined ? {} : { accuracyMetres: input.accuracyMetres }),
     ip: input.ip,
   });
-  const transactionResult = await db.transaction(createIdentityContext(user, `identity:login:${user.id}`), async (tx) => {
+  const ctx = createIdentityContext(user, `identity:login:${user.id}`);
+  const transactionResult = await db.transaction(ctx, async (tx) => {
     const signals = await detectSuspiciousLogin(tx, {
       organizationId: user.organizationId,
       userId: user.id,
@@ -78,6 +80,26 @@ export async function login(input: { email: string; password: string; deviceLabe
         sourceIp: input.ip,
         countryCode: input.countryCode ?? null,
         metadata: signal.metadata,
+      });
+    }
+    if (signals.length > 0) {
+      const type = NOTIFICATION_TYPES.IDENTITY_SUSPICIOUS_SIGN_IN;
+      await notify(tx, ctx, {
+        type,
+        priority: 'operational',
+        audience: { users: [user.id], includeActor: true },
+        title: 'Unusual sign-in to your account',
+        body: 'Review this activity if you do not recognize the sign-in.',
+        link: user.accountType === 'client' ? null : '/company/sessions',
+      });
+      await notify(tx, ctx, {
+        type,
+        priority: 'operational',
+        audience: { superAdmins: true },
+        title: 'Unusual sign-in detected',
+        body: clip(`Review the unusual sign-in to ${user.fullName}’s account in the audit log.`, 500),
+        link: '/company/audit',
+        metadata: { userId: user.id },
       });
     }
     return tokens;

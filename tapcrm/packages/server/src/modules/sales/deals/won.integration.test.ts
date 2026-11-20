@@ -162,6 +162,7 @@ describe.skipIf(!enabled)('sales won recorder (PostgreSQL)', () => {
   });
 
   afterAll(async () => {
+    await asOwner('cleanup notification outbox', sql`DELETE FROM notification_outbox WHERE organization_id = ${ORG}`);
     await asOwner('cleanup audit outbox', sql`DELETE FROM audit_outbox      WHERE organization_id = ${ORG}`);
     await asOwner('cleanup briefs',       sql`DELETE FROM delivery_brief    WHERE organization_id = ${ORG}`);
     await asOwner('cleanup contracts',    sql`DELETE FROM contract          WHERE organization_id = ${ORG}`);

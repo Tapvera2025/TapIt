@@ -111,27 +111,21 @@ function toResource(row: AuditRow): AuditEntryResource {
   };
 }
 
-async function isHrViewer(ctx: RequestContext): Promise<boolean> {
-  const row = await db.maybeOne<{ accountType: string; departmentCode: string | null }>(ctx, sql`
-    SELECT u.account_type, d.code AS department_code
-    FROM app_user u
-    LEFT JOIN department d
-      ON d.organization_id = u.organization_id AND d.id = u.department_id
-    WHERE u.organization_id = ${ctx.organizationId} AND u.id = ${ctx.principal.id}
-  `);
-  return row?.accountType === 'employee' && row.departmentCode?.toUpperCase() === 'HR';
-}
-
-export async function assertAuditViewer(ctx: RequestContext): Promise<'super-admin' | 'hr'> {
+/**
+ * Who may read the audit trail, and how much of it.
+ *
+ * The Super Admin reads every stream. Anyone else needs `audit:view` from
+ * their position (or an override) and reads the people-domain stream only:
+ * business-domain records stay outside a people-domain power (P7). Reach comes
+ * from the power, not from which department the reader sits in.
+ */
+export async function assertAuditViewer(ctx: RequestContext): Promise<'super-admin' | 'people'> {
+  if (globalAccess(ctx.principal)) return 'super-admin';
   const policy = await effectivePolicy(ctx, 'audit:view');
-  if (!globalAccess(ctx.principal) && !policy?.allowed) {
+  if (!policy?.allowed) {
     throw new AuthorizationError('audit:view', 'not_allowed', 'Audit access is not available to this account.');
   }
-  if (globalAccess(ctx.principal)) return 'super-admin';
-  if (!(await isHrViewer(ctx))) {
-    throw new AuthorizationError('audit:view', 'not_allowed', 'Only HR can view the people audit stream.');
-  }
-  return 'hr';
+  return 'people';
 }
 
 function rowSelect() {
@@ -162,7 +156,7 @@ export async function listAuditEntries(ctx: RequestContext, query: AuditQuery): 
     query.action ? sql`ae.action = ${query.action}` : sql`TRUE`,
     query.from ? sql`ae.occurred_at >= ${query.from}` : sql`TRUE`,
     query.to ? sql`ae.occurred_at <= ${query.to}` : sql`TRUE`,
-    viewer === 'hr'
+    viewer === 'people'
       ? sql`(ae.target_type = ANY(${[...PEOPLE_TARGET_TYPES]}::text[]) OR ae.action LIKE 'access.%' OR ae.action LIKE 'employee.%' OR ae.action LIKE 'identity.%')`
       : sql`TRUE`,
     cursor
@@ -217,7 +211,7 @@ export async function listAuditEntries(ctx: RequestContext, query: AuditQuery): 
       return right.stream.localeCompare(left.stream);
     });
   const unique = [...new Map(merged.map((row) => [`${row.stream}:${row.sequence}:${row.occurredAt.toISOString()}`, row])).values()];
-  const visible = viewer === 'hr' ? unique.filter(isPeopleAudit) : unique;
+  const visible = viewer === 'people' ? unique.filter(isPeopleAudit) : unique;
   const hasNext = visible.length > query.limit;
   const pageRows = hasNext ? visible.slice(0, query.limit) : visible;
   return {
@@ -238,9 +232,9 @@ export async function loadAuditEntryResource(ctx: RequestContext, id: string): P
       AND ae.sequence = ${key.sequence}
       AND ae.occurred_at = ${key.occurredAt}
   `);
-  if (row) return viewer === 'hr' && !isPeopleAudit(row) ? null : toResource(row);
+  if (row) return viewer === 'people' && !isPeopleAudit(row) ? null : toResource(row);
   const archived = await import('./archive.js').then(({ loadArchivedAuditEntry }) => loadArchivedAuditEntry(ctx, key));
-  if (!archived || (viewer === 'hr' && !isPeopleAudit(archived))) return null;
+  if (!archived || (viewer === 'people' && !isPeopleAudit(archived))) return null;
   return toResource({
     organizationId: archived.organizationId,
     stream: archived.stream,

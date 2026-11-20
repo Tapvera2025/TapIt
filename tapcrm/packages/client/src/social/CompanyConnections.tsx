@@ -332,7 +332,7 @@ export function CompanyConnections({
             <ConnectAgreement className="mt-2" youtube />
           </div>
         </div>
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="social-actions mt-4">
           {SOCIAL_COMPANY_PLATFORMS.map((platform) => (
             <Button
               key={platform}
@@ -369,7 +369,7 @@ export function CompanyConnections({
       {pending.length > 0 && (
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-48 flex-1">
+            <div className="social-row-copy">
               <h3 className="font-semibold">
                 {plural(pending.length, 'suggested assignment')}
               </h3>
@@ -458,7 +458,7 @@ export function CompanyConnections({
               ? 'Its Search Console data stops showing for this client.'
               : `Their scheduled posts to it are cancelled. Published posts stay on ${ASSET_LABELS[unassigning.platform]}.`}
           </p>
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div className="social-actions mt-5">
             <Button
               kind="danger"
               disabled={Boolean(busy)}
@@ -499,7 +499,7 @@ export function CompanyConnections({
               connection made with this login.
             </span>
           </label>
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div className="social-actions mt-5">
             <Button
               kind="danger"
               disabled={Boolean(busy)}
@@ -565,7 +565,7 @@ function ConnectionCard({
     <Card>
       <div className="flex flex-wrap items-center gap-3">
         <PlatformMark platform={connection.platform} />
-        <div className="min-w-40 flex-1">
+        <div className="social-row-copy">
           <h3 className="font-semibold">{connectionName(connection)}</h3>
           <p className="mt-1 text-xs text-app-muted">
             {login.account} · Connected
@@ -576,7 +576,7 @@ function ConnectionCard({
           </p>
         </div>
         <PostStatus status={connection.status} />
-        <div className="flex flex-wrap gap-2">
+        <div className="social-actions">
           {needsReconnect ? (
             <Button disabled={Boolean(busy)} onClick={onReconnect}>
               Reconnect
@@ -628,7 +628,7 @@ function ConnectionCard({
                 className="flex flex-wrap items-center gap-3 py-4 first:pt-0 last:pb-0"
               >
                 <PlatformMark platform={location.platform} small />
-                <div className="min-w-48 flex-1">
+                <div className="social-row-copy">
                   <p className="text-sm font-semibold">{location.name}</p>
                   <p className="mt-1 text-xs text-app-muted">
                     {[ASSET_LABELS[location.platform], location.detail, location.address]
@@ -689,7 +689,7 @@ function ConnectionCard({
                     <span className="text-xs text-app-muted">Not assigned</span>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="social-actions">
                   {assignment?.via === 'client_connection' ? (
                     <Button
                       kind="secondary"
@@ -793,7 +793,7 @@ function AssignClientModal({
             placeholder="Search your CRM clients"
           />
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="social-actions">
           <Button
             disabled={!client || busy || client.id === current?.clientId}
             onClick={() => {
@@ -932,7 +932,7 @@ export function AssignLocationModal({
                 className="flex flex-wrap items-center gap-3 rounded-xl border border-app-border p-3"
               >
                 <PlatformMark platform={location.platform} small />
-                <span className="min-w-40 flex-1">
+                <span className="social-row-copy">
                   <span className="block text-sm font-semibold">{location.name}</span>
                   <span className="block text-xs text-app-muted">
                     {location.assignment

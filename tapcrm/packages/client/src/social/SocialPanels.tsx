@@ -137,7 +137,7 @@ export function ConnectedAccounts({
             <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-app-accent/10 text-app-accent">
               <Icon name="building" />
             </span>
-            <div className="min-w-48 flex-1">
+            <div className="social-row-copy">
               <h3 className="font-semibold">Through your company logins</h3>
               <p className="mt-1 text-xs leading-5 text-app-muted">
                 {canManageIntegrations
@@ -146,7 +146,7 @@ export function ConnectedAccounts({
               </p>
             </div>
             {canManageIntegrations && (
-              <div className="flex flex-wrap gap-2">
+              <div className="social-actions">
                 <Button disabled={Boolean(busy)} onClick={() => setAssigning(true)}>
                   Assign from a company login
                 </Button>
@@ -223,7 +223,7 @@ export function ConnectedAccounts({
                 ) : (
                   <PlatformMark platform={account.platform} />
                 )}
-                <div className="min-w-32 flex-1">
+                <div className="social-row-copy">
                   <h3 className="text-sm font-semibold">{account.name}</h3>
                   <p className="mt-1 text-xs text-app-muted">
                     Connected {new Date(account.connectedAt).toLocaleDateString('en-IN')}
@@ -267,7 +267,7 @@ export function ConnectedAccounts({
                 </div>
                 <PostStatus status={account.status} />
                 {canConnect && (
-                  <div className="flex gap-2">
+                  <div className="social-actions">
                     {account.status === 'reconnect_required' &&
                       (account.connectionScope === 'company' ? (
                         // The company sign-in is reconnected once, for every client.
@@ -328,7 +328,7 @@ export function ConnectedAccounts({
             Unassign {disconnect.name} from {clientName}? Scheduled posts to it are
             cancelled. The company login keeps working for your other clients.
           </p>
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div className="social-actions mt-5">
             <Button
               kind="danger"
               disabled={Boolean(busy)}
@@ -375,7 +375,7 @@ export function ConnectedAccounts({
               </span>
             </label>
           )}
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div className="social-actions mt-5">
             <Button
               kind="danger"
               disabled={Boolean(busy)}
@@ -683,23 +683,27 @@ export function SocialPlatformAnalyticsPanel({
             })}
           </div>
         </div>
-        <form onSubmit={(event) => { event.preventDefault(); applyPeriod({ from, to }); }} className="mt-5 flex flex-wrap items-end gap-3 border-t border-app-border/60 pt-4">
-          <Field label="From" type="date" value={from} onChange={setFrom} required />
-          <Field label="To" type="date" value={to} onChange={setTo} required />
-          <Button type="submit" kind="secondary" disabled={loading || syncing}>Apply dates</Button>
-          <div className="ml-auto flex flex-wrap gap-2">
+        <form onSubmit={(event) => { event.preventDefault(); applyPeriod({ from, to }); }} className="social-analytics-filters mt-5 border-t border-app-border/60 pt-4">
+          <div className="social-filter-grid">
+            <Field label="From" type="date" value={from} onChange={setFrom} required />
+            <Field label="To" type="date" value={to} onChange={setTo} required />
+            <div className="social-actions">
+              <Button type="submit" kind="secondary" disabled={loading || syncing}>Apply dates</Button>
+            </div>
+          </div>
+          <div className="social-actions">
             <Button type="button" kind="secondary" disabled={loading || syncing} onClick={() => setReloadKey((key) => key + 1)}>
-              <Icon name="refresh" className="mr-2 inline size-4" />Refresh
+              <Icon name="refresh" className="size-4" />Refresh
             </Button>
             {canManage && <Button type="button" kind="secondary" disabled={loading || syncing} onClick={() => void syncRange()}>
-              <Icon name="refresh" className={`mr-2 inline size-4 ${syncing ? 'animate-spin' : ''}`} />{syncing ? 'Syncing…' : 'Sync channel data'}
+              <Icon name="refresh" className={`size-4 ${syncing ? 'animate-spin' : ''}`} />{syncing ? 'Syncing…' : 'Sync channel data'}
             </Button>}
             <Button type="button" kind="secondary" disabled={loading || syncing || !data?.snapshots.length} onClick={() => {
               void downloadSocialAnalyticsCsv(clientId, period.from, period.to).catch((cause: unknown) =>
                 setError(cause instanceof Error ? cause.message : 'Export failed.'),
               );
             }}>
-              <Icon name="download" className="mr-2 inline size-4" />Export CSV
+              <Icon name="download" className="size-4" />Export CSV
             </Button>
           </div>
         </form>

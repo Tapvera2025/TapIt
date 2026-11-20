@@ -217,10 +217,10 @@ export function Composer({
   }
 
   return (
-    <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(17rem,0.75fr)]">
-      <div className="space-y-5">
-        <Card>
-          <h2 className="font-semibold">{post ? 'Edit post' : 'Create a post'}</h2>
+    <div className="social-composer-grid">
+      <div className="social-composer-main">
+        <Card className="social-composer-card">
+          <h2 className="font-display text-lg font-bold tracking-tight">{post ? 'Edit post' : 'Create a post'}</h2>
           {!connected.length && (
             <Notice>
               Save a draft now, then connect a client account before submitting or
@@ -243,21 +243,21 @@ export function Composer({
           <p className="mt-1 text-sm text-app-muted">
             Choose your destinations, then tailor the message for each account.
           </p>
-          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          <div className="social-composer-destinations mt-4">
             {connected.map((account) => (
               <label
                 key={account.id}
-                className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 ${accountIds.includes(account.id) ? 'border-app-accent bg-app-accent/5' : 'border-app-border'}`}
+                className={`flex min-w-0 cursor-pointer items-center gap-3 rounded-xl border p-3 ${accountIds.includes(account.id) ? 'border-app-accent bg-app-accent/5' : 'border-app-border'}`}
               >
                 <input
                   type="checkbox"
                   checked={accountIds.includes(account.id)}
                   onChange={() => toggleAccount(account.id)}
-                  className="accent-app-accent"
+                  className="size-4 shrink-0 accent-app-accent"
                 />
                 <PlatformMark platform={account.platform} small />
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold">
+                  <span className="block break-words text-sm font-semibold">
                     {account.name}
                   </span>
                   <span className="text-xs text-app-muted">
@@ -268,7 +268,7 @@ export function Composer({
             ))}
           </div>
         </Card>
-        <Card className="space-y-4">
+        <Card className="social-composer-card social-form-stack">
           <label className="block text-xs font-semibold text-app-muted">
             <span className="mb-2 block">Caption</span>
             <textarea
@@ -276,13 +276,13 @@ export function Composer({
               value={caption}
               onChange={(event) => setCaption(event.target.value)}
               placeholder="What would you like to share? Add your message, links and #hashtags…"
-              className="w-full resize-y rounded-xl border border-app-border bg-app-background p-3 text-sm leading-6 text-app-foreground outline-none focus:border-app-accent"
+              className="ui-form-control block min-h-36 resize-y p-3 text-sm leading-6"
             />
             <span className="mt-1 block text-right font-normal">
               {caption.length.toLocaleString()} characters
             </span>
           </label>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="social-composer-fields">
             <Field
               label="Title (required for YouTube)"
               value={title}
@@ -298,15 +298,15 @@ export function Composer({
             />
           </div>
           <div className="rounded-xl border border-dashed border-app-border p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
+            <div className="social-toolbar">
+              <div className="social-row-copy">
                 <h3 className="text-sm font-semibold">Images & video</h3>
                 <p className="mt-1 text-xs text-app-muted">
                   JPEG / PNG up to 8 MB · MP4 up to 50 MB
                 </p>
               </div>
               <label
-                className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border border-app-border px-3 py-2 text-sm font-semibold ${uploading ? 'pointer-events-none opacity-50' : ''}`}
+                className={`social-media-upload inline-flex cursor-pointer items-center gap-2 rounded-lg border border-app-border px-3 py-2 text-sm font-semibold ${busy || uploading ? 'pointer-events-none opacity-50' : ''}`}
               >
                 <Icon name="plus" className="size-4" />
                 {uploading ? 'Uploading…' : 'Add media'}
@@ -324,7 +324,7 @@ export function Composer({
               </label>
             </div>
             {media.length > 0 && (
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div className="social-composer-media mt-4">
                 {media.map((item) => (
                   <div
                     key={item.id}
@@ -351,7 +351,7 @@ export function Composer({
                         aria-label={`Remove ${item.name}`}
                         disabled={busy}
                         onClick={() => removeMedia(item.id)}
-                        className="text-app-muted hover:text-app-danger"
+                        className="grid size-8 shrink-0 place-items-center rounded-lg text-app-muted hover:bg-app-surface-raised hover:text-app-danger"
                       >
                         <Icon name="close" className="size-4" />
                       </button>
@@ -369,11 +369,13 @@ export function Composer({
               <div className="mt-4 space-y-5">
                 {selectedAccounts.map((account) => (
                   <div key={account.id} className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <PlatformMark platform={account.platform} small />
-                      <h3 className="text-sm font-semibold">{account.name}</h3>
+                    <div className="social-toolbar">
+                      <div className="social-row-copy flex items-center gap-2">
+                        <PlatformMark platform={account.platform} small />
+                        <h3 className="min-w-0 break-words text-sm font-semibold">{account.name}</h3>
+                      </div>
                       <button
-                        className="ml-auto text-xs text-app-accent"
+                        className="max-w-full rounded-lg px-2 py-1.5 text-left text-xs font-semibold text-app-accent hover:bg-app-surface-raised"
                         type="button"
                         onClick={() =>
                           setOverrides((current) => {
@@ -501,7 +503,8 @@ export function Composer({
             </details>
           )}
         </Card>
-        <Card className="space-y-4">
+        <Card className="social-composer-card social-form-stack">
+          <h2 className="font-display text-lg font-bold tracking-tight">Publishing</h2>
           {error && <ErrorToast message={error} />}
           {accountIds.length > 0 && validation.length > 0 && (
             <div className="rounded-xl bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">
@@ -520,12 +523,14 @@ export function Composer({
               require another review.
             </p>
           )}
-          <Field
-            label={`Schedule date & time · ${settings.timezone}`}
-            type="datetime-local"
-            value={schedule}
-            onChange={setSchedule}
-          />
+          <div className="social-composer-schedule">
+            <Field
+              label={`Schedule date & time · ${settings.timezone}`}
+              type="datetime-local"
+              value={schedule}
+              onChange={setSchedule}
+            />
+          </div>
           {schedule &&
             (() => {
               try {
@@ -542,7 +547,7 @@ export function Composer({
                 return null;
               }
             })()}
-          <div className="flex flex-wrap gap-2">
+          <div className="social-actions social-composer-actions" role="group" aria-label="Post actions">
             <Button
               kind="secondary"
               disabled={busy || uploading}
@@ -577,10 +582,10 @@ export function Composer({
           </div>
         </Card>
       </div>
-      <Card className="xl:sticky xl:top-6">
+      <Card className="social-composer-card social-composer-preview">
         <div className="flex items-center gap-2">
           <Icon name="eye" className="size-4 text-app-muted" />
-          <h2 className="text-sm font-semibold">Post preview</h2>
+          <h2 className="font-display text-base font-bold">Post preview</h2>
         </div>
         <p className="mt-1 text-xs text-app-muted">
           An approximation. Each platform may display your content differently.
@@ -601,20 +606,20 @@ export function Composer({
             <div className="mt-5 overflow-hidden rounded-xl border border-app-border">
               <div className="flex items-center gap-3 p-4">
                 <PlatformMark platform={preview.platform} />
-                <div className="min-w-0">
-                  <h3 className="truncate text-sm font-semibold">{preview.name}</h3>
+                <div className="min-w-0 flex-1">
+                  <h3 className="break-words text-sm font-semibold">{preview.name}</h3>
                   <p className="text-xs text-app-muted">
                     {preview.platform === 'linkedin' ? 'Just now · Public' : 'Just now'}
                   </p>
                 </div>
-                <Icon name="more" className="ml-auto size-4" />
+                <Icon name="more" className="size-4 shrink-0" />
               </div>
               {preview.platform === 'youtube' && (
-                <h4 className="px-4 pb-2 font-semibold">
+                <h4 className="break-words px-4 pb-2 font-semibold">
                   {previewOverride?.title ?? title}
                 </h4>
               )}
-              <p className="whitespace-pre-wrap break-words px-4 pb-4 text-sm leading-6">
+              <p className="whitespace-pre-wrap [overflow-wrap:anywhere] px-4 pb-4 text-sm leading-6">
                 {(previewOverride?.caption ?? caption) ||
                   'Your caption will appear here.'}
               </p>

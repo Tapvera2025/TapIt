@@ -15,11 +15,15 @@
 import { ApplicationError } from '../../../../errors.js';
 import type { Principal } from '@tapcrm/contracts';
 import { createJobContext, type RequestContext } from '../../../../platform/dal/context.js';
-import { db } from '../../../../platform/dal/db.js';
+import { db, type Tx } from '../../../../platform/dal/db.js';
 import { sql } from '../../../../platform/dal/sql.js';
 import { consumeRateLimit } from '../../../../platform/security/rate-limit.js';
+import { NOTIFICATION_TYPES, clip, notify } from '../../../notifications/facade.js';
 import { findCommercials } from '../repository.js';
 import type { Commercials } from '../types.js';
+import type { ProposalSender } from '../../../organization/proposal-branding.js';
+import { findDeal } from '../../deals/repository.js';
+import { getCommercialsSender } from '../branding.js';
 import { resolveToken, type ResolvedToken } from './token.js';
 
 const RATE_LIMIT_PER_TOKEN = 30;
@@ -53,6 +57,8 @@ export class PortalRateLimitedError extends ApplicationError {
 /** Public card projection — only buyer-facing fields leave the service. */
 export interface PortalProposalCard {
   readonly dealTitle: string;
+  readonly recipientName: string | null;
+  readonly sender: ProposalSender;
   readonly version: number;
   readonly currency: string;
   readonly subtotalMinor: string;
@@ -122,7 +128,7 @@ async function enforceRateLimit(tokenId: string, ip: string): Promise<void> {
   }
 }
 
-function assertUsableTokenRow(row: ResolvedToken, now = new Date()): void {
+function assertUsableTokenRow(row: Pick<ResolvedToken, 'revokedAt' | 'expiresAt'>, now = new Date()): void {
   if (row.revokedAt) throw new PortalGoneError('revoked');
   if (row.expiresAt.getTime() <= now.getTime()) throw new PortalGoneError('expired');
 }
@@ -143,7 +149,7 @@ function assertUsableCommercialsState(state: Commercials['state']): asserts stat
   }
 }
 
-function toCard(commercials: Commercials, dealTitle: string): PortalProposalCard {
+function toCard(commercials: Commercials, dealTitle: string, recipientName: string | null, sender: ProposalSender): PortalProposalCard {
   if (!commercials.pdfChecksum || !commercials.publishedAt) {
     // Only reachable if a published row somehow lacks a checksum; shouldn't
     // happen because publishVersion sets both together.
@@ -151,6 +157,8 @@ function toCard(commercials: Commercials, dealTitle: string): PortalProposalCard
   }
   return {
     dealTitle,
+    recipientName,
+    sender,
     version: commercials.version,
     currency: commercials.currency,
     subtotalMinor: commercials.subtotalMinor.toString(),
@@ -195,11 +203,11 @@ export async function viewProposal(rawToken: string, meta: PortalRequestMetadata
   const commercials = await findCommercials(ctx, resolved.commercialsId);
   if (!commercials) throw new PortalGoneError('unknown');
   assertUsableCommercialsState(commercials.state);
-  const deal = await db.maybeOne<{ title: string }>(
-    ctx,
-    sql`SELECT title FROM deal WHERE organization_id = ${ctx.organizationId} AND id = ${commercials.dealId}`,
-  );
-  return toCard(commercials, deal?.title ?? '');
+  const [deal, sender] = await Promise.all([
+    findDeal(ctx, commercials.dealId),
+    getCommercialsSender(ctx, commercials.id),
+  ]);
+  return toCard(commercials, deal?.title ?? '', deal?.companyName || deal?.contactName || null, sender);
 }
 
 export interface AcceptProposalInput {
@@ -210,6 +218,59 @@ export interface AcceptProposalResult {
   readonly acceptedAt: Date;
   readonly pdfChecksum: string;
   readonly alreadyAccepted: boolean;
+}
+
+async function lockSharedProposal(tx: Tx, resolved: ResolvedToken) {
+  const row = await tx.maybeOne<{
+    id: string;
+    dealId: string;
+    issuerId: string;
+    state: Commercials['state'];
+    pdfChecksum: string | null;
+    acceptedAt: Date | null;
+    acceptedEvidence: Record<string, unknown> | null;
+    revokedAt: Date | null;
+    expiresAt: Date;
+  }>(sql`
+    SELECT c.id,
+           c.deal_id           AS "dealId",
+           c.state,
+           c.pdf_checksum      AS "pdfChecksum",
+           c.accepted_at       AS "acceptedAt",
+           c.accepted_evidence AS "acceptedEvidence",
+           t.created_by        AS "issuerId",
+           t.revoked_at        AS "revokedAt",
+           t.expires_at        AS "expiresAt"
+      FROM commercials c
+      JOIN proposal_portal_token t
+        ON t.organization_id = c.organization_id AND t.commercials_id = c.id
+     WHERE c.organization_id = ${resolved.organizationId}
+       AND c.id = ${resolved.commercialsId}
+       AND t.id = ${resolved.tokenId}
+     FOR UPDATE OF c, t
+  `);
+  if (!row) throw new PortalGoneError('unknown');
+  assertUsableTokenRow(row);
+  assertUsableCommercialsState(row.state);
+  return row;
+}
+
+async function notifyProposalResponse(
+  tx: Tx,
+  ctx: RequestContext,
+  proposal: { id: string; dealId: string; issuerId: string },
+  comment?: string,
+): Promise<void> {
+  const acceptance = comment === undefined;
+  await notify(tx, ctx, {
+    type: acceptance ? NOTIFICATION_TYPES.PROPOSAL_ACCEPTED : NOTIFICATION_TYPES.PROPOSAL_CHANGES_REQUESTED,
+    priority: 'operational',
+    audience: { users: [proposal.issuerId], superAdmins: true },
+    title: acceptance ? 'Customer accepted the proposal' : 'Customer requested proposal changes',
+    body: acceptance ? 'Review the accepted version and follow up on the deal.' : clip(comment, 2000),
+    link: `/company/sales/deals/${proposal.dealId}/proposals?version=${proposal.id}`,
+    metadata: { dealId: proposal.dealId, commercialsId: proposal.id },
+  });
 }
 
 /**
@@ -232,24 +293,7 @@ export async function acceptProposal(
   const tokenHash = resolved.tokenHash;
 
   const outcome = await db.transaction(ctx, async (tx) => {
-    const locked = await tx.maybeOne<{
-      id: string;
-      state: Commercials['state'];
-      pdfChecksum: string | null;
-      acceptedAt: Date | null;
-      acceptedEvidence: Record<string, unknown> | null;
-    }>(sql`
-      SELECT id,
-             state,
-             pdf_checksum     AS "pdfChecksum",
-             accepted_at      AS "acceptedAt",
-             accepted_evidence AS "acceptedEvidence"
-        FROM commercials
-       WHERE organization_id = ${ctx.organizationId}
-         AND id              = ${resolved.commercialsId}
-       FOR UPDATE
-    `);
-    if (!locked) throw new PortalGoneError('unknown');
+    const locked = await lockSharedProposal(tx, resolved);
     if (!locked.pdfChecksum) throw new PortalGoneError('not_published');
 
     if (locked.state === 'accepted') {
@@ -261,11 +305,6 @@ export async function acceptProposal(
         pdfChecksum: locked.pdfChecksum,
         alreadyAccepted: true,
       };
-    }
-
-    if (locked.state !== 'published') {
-      assertUsableCommercialsState(locked.state);
-      throw new PortalGoneError('unknown');
     }
 
     const evidence = {
@@ -302,6 +341,7 @@ export async function acceptProposal(
         },
       })}::jsonb)
     `);
+    await notifyProposalResponse(tx, ctx, locked);
     return {
       acceptedAt: now,
       pdfChecksum: locked.pdfChecksum,
@@ -314,9 +354,7 @@ export async function acceptProposal(
 
 /**
  * POST /api/public/proposals/:token/question — records a comment without
- * state change. Lands in the audit stream for the issuer to triage. No
- * dedicated table yet; the audit log is enough until R3 adds a comments
- * UI.
+ * state change. Records the comment for audit and alerts the proposal issuer.
  */
 export async function recordQuestion(
   rawToken: string,
@@ -330,22 +368,27 @@ export async function recordQuestion(
 
   const ctx = systemCtxFor(resolved.organizationId);
   const now = new Date();
-  await db.query(ctx, sql`
-    INSERT INTO audit_outbox (organization_id, stream, payload)
-    VALUES (${ctx.organizationId}, 'activity', ${JSON.stringify({
-      action: 'commercials.question',
-      actorType: 'public',
-      targetType: 'commercials',
-      targetId: resolved.commercialsId,
-      before: null,
-      after: {
-        at: now.toISOString(),
-        comment: input.comment.slice(0, 2000),
-        tokenHashHead: resolved.tokenHash.slice(0, 12),
-        ipHead: meta.ip ? meta.ip.slice(0, 24) : null,
-        userAgentHead: (meta.userAgent ?? '').slice(0, 120),
-      },
-    })}::jsonb)
-  `);
+  await db.transaction(ctx, async (tx) => {
+    const proposal = await lockSharedProposal(tx, resolved);
+    const comment = input.comment.slice(0, 2000);
+    await tx.query(sql`
+      INSERT INTO audit_outbox (organization_id, stream, payload)
+      VALUES (${ctx.organizationId}, 'activity', ${JSON.stringify({
+        action: 'commercials.question',
+        actorType: 'public',
+        targetType: 'commercials',
+        targetId: proposal.id,
+        before: null,
+        after: {
+          at: now.toISOString(),
+          comment,
+          tokenHashHead: resolved.tokenHash.slice(0, 12),
+          ipHead: meta.ip ? meta.ip.slice(0, 24) : null,
+          userAgentHead: (meta.userAgent ?? '').slice(0, 120),
+        },
+      })}::jsonb)
+    `);
+    await notifyProposalResponse(tx, ctx, proposal, comment);
+  });
   return { recordedAt: now };
 }

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { route } from '../../../platform/http/route.js';
 import { loadLeadResource } from '../leads/repository.js';
-import { claimsDistribution, poolHealth } from './dashboard.js';
+import { claimsDistribution, overviewMetrics, poolHealth } from './dashboard.js';
 import { BidPoolLeadNotFoundError } from './errors.js';
 import { claim, getBidCard, listBidPool, pass, type PassReason } from './service.js';
 
@@ -33,7 +33,7 @@ export function registerBidPoolRoutes(): void {
     path: '/api/sales/dashboard/pool-health',
     action: 'leads:view',
     module: 'leads',
-    handler: async ({ ctx }) => poolHealth(ctx),
+    handler: async ({ ctx, query }) => query['view'] === 'overview' ? overviewMetrics(ctx) : poolHealth(ctx),
   });
 
   route({

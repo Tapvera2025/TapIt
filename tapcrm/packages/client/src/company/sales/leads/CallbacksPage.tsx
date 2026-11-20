@@ -19,8 +19,10 @@ import {
   type CallbackOrder,
 } from './callback-ui.js';
 import { ErrorToast } from '../../../ui/ErrorToast.js';
+import { CallbackScheduleView } from './CallbackScheduleView.js';
+import './callback-schedule.css';
 
-type CallbackView = 'list' | 'calendar' | 'board' | 'schedule';
+type CallbackView = 'list' | 'calendar' | 'board' | 'schedule' | 'scheduleGrid';
 const statuses = ['pending', 'completed', 'rescheduled', 'not_reachable', 'missed', 'cancelled'];
 
 /** Board columns, in the order a callback moves through them. */
@@ -29,17 +31,18 @@ const BOARD_COLUMNS = ['pending', 'not_reachable', 'missed', 'rescheduled', 'com
 const BOARD_COLUMN_LIMIT = 15;
 
 const VIEW_TABS = [
+  { id: 'callbacks-view-schedule', view: 'scheduleGrid', label: 'Schedule', icon: 'calendar' },
   { id: 'callbacks-view-list', view: 'list', label: 'List', icon: 'list' },
   { id: 'callbacks-view-calendar', view: 'calendar', label: 'Calendar', icon: 'calendar' },
   { id: 'callbacks-view-board', view: 'board', label: 'Board', icon: 'kanban' },
 ] as const;
 
 const TONE_CLASSES: Record<string, string> = {
-  pending: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
-  overdue: 'bg-[#d86b6b]/15 text-app-danger',
+  pending: 'bg-app-accent/10 text-app-accent',
+  overdue: 'bg-app-danger/15 text-app-danger',
   completed: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
   not_reachable: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  missed: 'bg-[#d86b6b]/15 text-app-danger',
+  missed: 'bg-app-danger/15 text-app-danger',
   rescheduled: 'bg-app-background text-app-muted',
   cancelled: 'bg-app-background text-app-muted',
 };
@@ -66,10 +69,10 @@ function timeOf(value: string, timezone: string): string {
   return new Intl.DateTimeFormat(undefined, { timeStyle: 'short', timeZone: timezone }).format(new Date(value));
 }
 
-export function CallbacksPage({ view, organizationTimezone, onNavigate }: { view: CallbackView; organizationTimezone: string; onNavigate: (path: string) => void }): React.JSX.Element {
+export function CallbacksPage({ view, query = '', canSchedule = true, organizationTimezone, onNavigate }: { view: CallbackView; query?: string; canSchedule?: boolean; organizationTimezone: string; onNavigate: (path: string) => void }): React.JSX.Element {
   const [callbacks, setCallbacks] = useState<LeadCallback[]>([]);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(() => new URLSearchParams(query).get('status') === 'pending' ? 'pending' : '');
   const [ownerId, setOwnerId] = useState('');
   const [owners, setOwners] = useState<Array<{ value: string; label: string }>>([]);
   const [leadSearch, setLeadSearch] = useState('');
@@ -82,10 +85,16 @@ export function CallbacksPage({ view, organizationTimezone, onNavigate }: { view
     .catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to load callbacks.'))
     .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { void reload(); }, [status, from, to]);
+  useEffect(() => { if (view !== 'scheduleGrid' && view !== 'schedule') void reload(); }, [view, status, from, to]);
   const shown = useMemo(() => sortCallbacks(filterCallbacks(callbacks, ownerId, leadSearch), order), [callbacks, ownerId, leadSearch, order]);
-  const nav = (next: CallbackView) => onNavigate(`/company/sales/callbacks${next === 'list' ? '' : `/${next}`}`);
-  if (view === 'schedule') return <ScheduleCallbackPage organizationTimezone={organizationTimezone} onBack={() => nav('list')} onCreated={(id) => onNavigate(`/company/sales/callbacks/${id}`)} />;
+  const nav = (next: CallbackView) => onNavigate(next === 'scheduleGrid' ? '/company/sales/callbacks' : `/company/sales/callbacks/${next}`);
+  if (view === 'schedule' && !canSchedule) return (
+    <Page eyebrow="Sales" title="Schedule callback" action={<Button kind="secondary" onClick={() => nav('scheduleGrid')}>Back to callbacks</Button>}>
+      <Card><p className="text-sm text-app-muted">Your role does not allow scheduling callbacks.</p></Card>
+    </Page>
+  );
+  if (view === 'schedule') return <ScheduleCallbackPage initialTime={new URLSearchParams(query).get('at') ?? ''} organizationTimezone={organizationTimezone} onBack={() => nav('scheduleGrid')} onCreated={(id) => onNavigate(`/company/sales/callbacks/${id}`)} />;
+  if (view === 'scheduleGrid') return <CallbackScheduleView canSchedule={canSchedule} organizationTimezone={organizationTimezone} onNavigate={onNavigate} />;
 
   const now = new Date();
   const todayKey = organizationDayKey(now, organizationTimezone);
@@ -99,7 +108,7 @@ export function CallbacksPage({ view, organizationTimezone, onNavigate }: { view
       eyebrow="Sales"
       title="Callbacks"
       description={`Follow-up calls booked for leads. A callback is not a missed phone call: JustCall and Aircall calls don't create callbacks. Times are in ${organizationTimezone}.`}
-      action={<Button onClick={() => nav('schedule')}>Schedule callback</Button>}
+      action={canSchedule && <Button onClick={() => nav('schedule')}>Schedule callback</Button>}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SegmentedTabs
@@ -304,9 +313,9 @@ function CallbackBoard({ callbacks, timezone, now, onNavigate }: { callbacks: Le
   );
 }
 
-function ScheduleCallbackPage({ organizationTimezone, onBack, onCreated }: { organizationTimezone: string; onBack: () => void; onCreated: (id: string) => void }): React.JSX.Element {
-  const [leads, setLeads] = useState<Lead[]>([]); const [leadId, setLeadId] = useState(''); const [scheduledAt, setScheduledAt] = useState(''); const [reason, setReason] = useState(''); const [error, setError] = useState('');
+function ScheduleCallbackPage({ initialTime, organizationTimezone, onBack, onCreated }: { initialTime: string; organizationTimezone: string; onBack: () => void; onCreated: (id: string) => void }): React.JSX.Element {
+  const [leads, setLeads] = useState<Lead[]>([]); const [leadId, setLeadId] = useState(''); const [scheduledAt, setScheduledAt] = useState(() => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(initialTime) ? initialTime : ''); const [reason, setReason] = useState(''); const [error, setError] = useState('');
   useEffect(() => { void getLeads().then((page) => setLeads(page.items)).catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to load Leads.')); }, []);
   const save = async () => { try { const callback = await createCallback({ leadId, scheduledAt: organizationLocalToIso(scheduledAt, organizationTimezone), reason: reason.trim() || undefined }); onCreated(callback.id); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to schedule callback.'); } };
-  return <Page eyebrow="Sales" title="Schedule callback" description={`Times are interpreted in ${organizationTimezone}.`} action={<Button kind="secondary" onClick={onBack}>Back to callbacks</Button>}>{error && <ErrorToast message={error} />}<Card className="max-w-2xl"><div className="grid gap-4 md:grid-cols-2"><Select label="Lead" value={leadId} onChange={setLeadId} options={leads.map((lead) => ({ value: lead.id, label: `${lead.contactName} · #${lead.leadNumber}` }))} /><Field label="Date and time" value={scheduledAt} onChange={setScheduledAt} type="datetime-local" min={organizationNowLocal(organizationTimezone)} /><Field label="Reason" value={reason} onChange={setReason} /></div><div className="mt-5 flex justify-end"><Button disabled={!leadId || !scheduledAt} onClick={() => void save()}>Schedule</Button></div></Card></Page>;
+  return <Page eyebrow="Sales" title="Schedule callback" description={`Times are interpreted in ${organizationTimezone}.`} action={<Button kind="secondary" onClick={onBack}>Back to callbacks</Button>}>{error && <ErrorToast message={error} />}<Card className="max-w-2xl"><div className="grid gap-4 md:grid-cols-2"><Select label="Lead" value={leadId} onChange={setLeadId} options={leads.map((lead) => ({ value: lead.id, label: `${lead.contactName} · #${lead.leadNumber}` }))} /><Field label="Date and time" value={scheduledAt} onChange={setScheduledAt} type="datetime-local" min={organizationNowLocal(organizationTimezone)} /><Field label="Reason" value={reason} onChange={setReason} /></div><div className="mt-5 flex justify-end"><Button disabled={!leadId || !scheduledAt || scheduledAt < organizationNowLocal(organizationTimezone)} onClick={() => void save()}>Schedule</Button></div></Card></Page>;
 }

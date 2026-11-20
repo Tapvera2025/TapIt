@@ -419,7 +419,7 @@ describe('Super Admin Navigation for Employee Notes', () => {
     expect(employeeNotesItem).toBeDefined();
     expect(employeeNotesItem?.path).toBe('/company/employee-notes');
     expect(employeeNotesItem?.icon).toBe('notepad');
-    expect(employeeNotesItem?.requiredAction).toBe('notepad:view-all');
+    expect(employeeNotesItem?.access?.all).toEqual(['notepad:view-all']);
   });
 
   it('displays Employee Notes in CompanySidebar only for super-admin, not for employees or HR', async () => {
@@ -449,12 +449,6 @@ describe('Super Admin Navigation for Employee Notes', () => {
           },
           organizationName: 'Acme Corp',
           accountType: 'super-admin',
-          canRequestRoleChange: false,
-          canViewAudit: true,
-          canViewEmployees: true,
-          canViewTerritories: false,
-          canViewLeads: false,
-          canViewHandovers: false,
           onNavigate: () => {},
           onLogout: () => {},
           open: true,
@@ -479,12 +473,6 @@ describe('Super Admin Navigation for Employee Notes', () => {
           },
           organizationName: 'Acme Corp',
           accountType: 'employee',
-          canRequestRoleChange: false,
-          canViewAudit: false,
-          canViewEmployees: true,
-          canViewTerritories: false,
-          canViewLeads: false,
-          canViewHandovers: false,
           onNavigate: () => {},
           onLogout: () => {},
           open: true,
@@ -509,12 +497,6 @@ describe('Super Admin Navigation for Employee Notes', () => {
           },
           organizationName: 'Acme Corp',
           accountType: 'employee',
-          canRequestRoleChange: false,
-          canViewAudit: false,
-          canViewEmployees: true,
-          canViewTerritories: false,
-          canViewLeads: false,
-          canViewHandovers: false,
           onNavigate: () => {},
           onLogout: () => {},
           open: true,

@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  isActionModuleEnabled,
-  superAdminOr,
-  superAdminOrBeyondOwn,
-} from './module-access.js';
+import { isActionModuleEnabled } from './module-access.js';
+import { holdsPower } from './layout/navigation.js';
 
 describe('module access', () => {
   it('requires the owning module to be enabled', () => {
@@ -16,19 +13,19 @@ describe('module access', () => {
   });
 
   it('does not let a super-admin bypass a disabled module', () => {
-    const base = { isSuperAdmin: true, capabilities: [] };
-    expect(superAdminOr({ ...base, enabledModules: [] }, 'social:view')).toBe(false);
-    expect(superAdminOr({ ...base, enabledModules: ['social'] }, 'social:view')).toBe(true);
-    expect(superAdminOrBeyondOwn({ ...base, enabledModules: [] }, 'social:view')).toBe(false);
+    const superAdmin = { accountType: 'super-admin', capabilities: [] };
+    expect(holdsPower({ ...superAdmin, enabledModules: [] }, 'social:view')).toBe(false);
+    expect(holdsPower({ ...superAdmin, enabledModules: ['social'] }, 'social:view')).toBe(true);
+    expect(holdsPower({ ...superAdmin, enabledModules: [] }, { action: 'social:view', reach: 'beyond-own' })).toBe(false);
   });
 
   it('honours held capabilities for regular users', () => {
     const subject = {
-      isSuperAdmin: false,
+      accountType: 'employee',
       enabledModules: ['social'],
       capabilities: [{ action: 'social:view', scope: 'own' }],
     };
-    expect(superAdminOr(subject, 'social:view')).toBe(true);
-    expect(superAdminOrBeyondOwn(subject, 'social:view')).toBe(false);
+    expect(holdsPower(subject, 'social:view')).toBe(true);
+    expect(holdsPower(subject, { action: 'social:view', reach: 'beyond-own' })).toBe(false);
   });
 });

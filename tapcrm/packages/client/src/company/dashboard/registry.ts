@@ -1,5 +1,7 @@
+import type { Action } from '@tapcrm/contracts';
 import type { CompanyIdentity } from '../api/companyApi.js';
 import { isActionModuleEnabled } from '../module-access.js';
+import { holdsPower } from '../layout/navigation.js';
 import type { WidgetDef } from './widget-types.js';
 import {
   PunchStateWidget,
@@ -40,6 +42,15 @@ const hasBeyondOwn = (action: string) => (id: CompanyIdentity): boolean =>
 const moduleOn = (id: CompanyIdentity, key: string): boolean => (id.enabledModules as readonly string[]).includes(key);
 const superAdminOr = (action: string) => (id: CompanyIdentity): boolean =>
   has(action)(id) || (isSuperAdmin(id) && isActionModuleEnabled(id.enabledModules, action));
+/**
+ * Holds the power behind a widget's data, by the same check the sidebar uses:
+ * the module is on and the person's position (or an override) grants it.
+ */
+const holds = (action: Action) => (id: CompanyIdentity): boolean =>
+  holdsPower(
+    { accountType: id.user.accountType, enabledModules: id.enabledModules, capabilities: id.capabilities },
+    action,
+  );
 
 export const WIDGET_REGISTRY: readonly WidgetDef[] = [
   // Personal widgets are available when their underlying module capability is
@@ -75,7 +86,8 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     id: 'my-tasks',
     title: 'My open tasks',
     description: 'Your pending tasks, soonest due first.',
-    available: () => true,
+    // Loads GET /api/tasks.
+    available: holds('tasks:view'),
     defaultLayout: { w: 4, h: 4, minW: 3, minH: 4 },
     component: MyTasksWidget,
   },
@@ -83,7 +95,8 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     id: 'my-leave',
     title: 'My leave',
     description: 'Available balance and pending requests.',
-    available: () => true,
+    // Loads GET /api/leaves/balances/:userId and GET /api/leaves.
+    available: holds('leave:view'),
     defaultLayout: { w: 4, h: 3, minW: 2, minH: 3 },
     component: MyLeaveWidget,
   },
@@ -91,7 +104,8 @@ export const WIDGET_REGISTRY: readonly WidgetDef[] = [
     id: 'upcoming-holidays',
     title: 'Upcoming holidays',
     description: 'Holidays coming up in the next two months.',
-    available: () => true,
+    // Loads GET /api/holidays.
+    available: holds('holidays:view'),
     defaultLayout: { w: 4, h: 4, minW: 3, minH: 4 },
     component: UpcomingHolidaysWidget,
   },

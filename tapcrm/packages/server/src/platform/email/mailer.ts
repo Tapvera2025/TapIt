@@ -1,11 +1,14 @@
 import nodemailer, { type Transporter } from 'nodemailer';
 import { emailTransport, loadConfig } from '../../config.js';
+import { tapveraLogoAttachment } from './branding.js';
 
 export interface EmailMessage {
   readonly to: string;
   readonly subject: string;
   readonly text: string;
   readonly html?: string;
+  /** Embed the logo so displaying it does not require loading a remote image. */
+  readonly brandLogo?: 'tapvera-crm';
   /** Sensitive bodies must never be printed by the development console sender. */
   readonly sensitive?: boolean;
 }
@@ -112,5 +115,6 @@ export async function deliverEmail(message: EmailMessage): Promise<void> {
     subject: message.subject,
     text: message.text,
     html: message.html,
+    ...(message.brandLogo === 'tapvera-crm' ? { attachments: [tapveraLogoAttachment] } : {}),
   });
 }

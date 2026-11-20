@@ -4,9 +4,10 @@ import { PortalSidebar } from '../../layout/PortalSidebar.js';
 import { Navbar } from './Navbar.js';
 import { ChatUnreadProvider } from '../../chat/ChatUnreadContext.js';
 import { NotificationsProvider } from '../../notifications/NotificationsContext.js';
+import { applyPermissionsChanged } from '../api/client.js';
 import { SalesGuideFrame, SalesGuideToggle } from '../sales/guide/SalesGuide.js';
 import { salesGuideKey } from '../sales/guide/page-guidance.js';
-import type { CompanySearchDestination } from './navigation.js';
+import type { CompanySearchDestination, ScreenCapability } from './navigation.js';
 import { CompanyNavbarProvider } from './CompanyNavbarContext.js';
 import { CompanyPageHero, defaultCompanyPageMetadata } from './CompanyPageHero.js';
 import { usePortalSidebarState } from './usePortalSidebarState.js';
@@ -17,53 +18,8 @@ export function CompanyLayout({
   organizationName,
   organizationCode,
   accountType,
-  canRequestRoleChange,
-  canViewAudit,
-  canManageLeaveTypes,
-  canViewLeaveBalances,
-  canUseLeaveQueue,
-  canViewEmployees,
-  canViewTerritories,
-  canViewLeads,
-  canViewCallbacks,
-  canViewCalls,
-  canTriageSales,
-  canViewImports = false,
-  canTrackAssignedCalls = false,
-  canManageCalls,
-  canViewHandovers,
-  canViewDeals,
-  canRecordWin,
-  canDecideApprovals,
-  canForecast,
+  capabilities,
   canViewChat,
-  canViewClients,
-  canViewSocial,
-  canViewMeetings = false,
-  canViewSeo,
-  canViewProjects,
-  canViewLiveBoard,
-  canViewAttendanceReports,
-  canReviewCorrections,
-  canReviewBreaches,
-  canManageBreakPolicies,
-  canManageShifts,
-  canManagePayroll,
-  canManagePayrollConfig,
-  canViewAccounting,
-  canViewTa,
-  canManageTa,
-  canManageBiometric,
-  canViewAdvances,
-  canManageAdvances,
-  canViewPenalties,
-  canManagePenalties,
-  canViewExpenses,
-  canApproveExpenses,
-  isHr,
-  canViewRecruitment,
-  canViewAccessExplorer,
-  hasRecruitment,
   hasInterviews,
   enabledModules,
   title: _title,
@@ -85,55 +41,10 @@ export function CompanyLayout({
   organizationName: string | null;
   organizationCode: string | null;
   accountType: string;
-  canRequestRoleChange: boolean;
-  canViewAudit: boolean;
-  canManageLeaveTypes: boolean;
-  canViewLeaveBalances: boolean;
-  canUseLeaveQueue: boolean;
-  canViewEmployees: boolean;
-  canViewTerritories: boolean;
-  canViewLeads: boolean;
-  canViewCallbacks: boolean;
-  canViewCalls: boolean;
-  canTriageSales: boolean;
-  canViewImports?: boolean;
-  canTrackAssignedCalls?: boolean;
-  canManageCalls: boolean;
-  canViewHandovers: boolean;
-  canViewDeals: boolean;
-  canRecordWin: boolean;
-  canDecideApprovals: boolean;
-  canForecast: boolean;
+  /** The powers the server resolved for this session; the sidebar is derived from them. */
+  capabilities: readonly ScreenCapability[];
+  /** Turns on the unread-message counter. */
   canViewChat: boolean;
-  canViewClients: boolean;
-  canViewSocial: boolean;
-  canViewMeetings?: boolean;
-  canViewSeo: boolean;
-  canViewProjects: boolean;
-  canViewLiveBoard: boolean;
-  canViewAttendanceReports: boolean;
-  canReviewCorrections: boolean;
-  canReviewBreaches: boolean;
-  canManageBreakPolicies: boolean;
-  canManageShifts: boolean;
-  canManagePayroll: boolean;
-  canManagePayrollConfig: boolean;
-  canViewAccounting: boolean;
-  canViewTa: boolean;
-  canManageTa: boolean;
-  canManageBiometric: boolean;
-  canViewAdvances: boolean;
-  canManageAdvances: boolean;
-  canViewPenalties: boolean;
-  canManagePenalties: boolean;
-  canViewExpenses: boolean;
-  canApproveExpenses: boolean;
-  isHr: boolean;
-  /** Recruitment workspace reachable: HR, or a held recruitment view power. */
-  canViewRecruitment?: boolean;
-  /** Access Explorer reachable: super-admin, or a held access:view power. */
-  canViewAccessExplorer?: boolean;
-  hasRecruitment: boolean;
   /** Modules enabled for the company; omitted means every module is offered. */
   enabledModules?: readonly string[];
   /** This user has interviews (rounds or panels): show "My Interviews". */
@@ -272,7 +183,7 @@ export function CompanyLayout({
 
   return (
     <ChatUnreadProvider enabled={canViewChat}>
-      <NotificationsProvider>
+      <NotificationsProvider onPermissionsChanged={applyPermissionsChanged}>
       <CompanyNavbarProvider initialPage={initialPage}>
         <div className="company-layout-shell flex h-dvh flex-col overflow-hidden bg-app-background text-app-foreground">
         <a
@@ -307,53 +218,7 @@ export function CompanyLayout({
             identity={identity}
             organizationName={organizationName}
             accountType={accountType}
-            canRequestRoleChange={canRequestRoleChange}
-            canViewAudit={canViewAudit}
-            canManageLeaveTypes={canManageLeaveTypes}
-            canViewLeaveBalances={canViewLeaveBalances}
-            canUseLeaveQueue={canUseLeaveQueue}
-            canViewEmployees={canViewEmployees}
-            canViewTerritories={canViewTerritories}
-            canViewLeads={canViewLeads}
-            canViewCallbacks={canViewCallbacks}
-            canViewCalls={canViewCalls}
-            canTriageSales={canTriageSales}
-            canViewImports={canViewImports}
-            canTrackAssignedCalls={canTrackAssignedCalls}
-            canManageCalls={canManageCalls}
-            canViewHandovers={canViewHandovers}
-            canViewDeals={canViewDeals}
-            canRecordWin={canRecordWin}
-            canDecideApprovals={canDecideApprovals}
-            canForecast={canForecast}
-            canViewChat={canViewChat}
-            canViewClients={canViewClients}
-            canViewSocial={canViewSocial}
-            canViewMeetings={canViewMeetings}
-            canViewSeo={canViewSeo}
-            canViewProjects={canViewProjects}
-            canViewLiveBoard={canViewLiveBoard}
-            canViewAttendanceReports={canViewAttendanceReports}
-            canReviewCorrections={canReviewCorrections}
-            canReviewBreaches={canReviewBreaches}
-            canManageBreakPolicies={canManageBreakPolicies}
-            canManageShifts={canManageShifts}
-            canManagePayroll={canManagePayroll}
-            canManagePayrollConfig={canManagePayrollConfig}
-            canViewAccounting={canViewAccounting}
-            canViewTa={canViewTa}
-            canManageTa={canManageTa}
-            canManageBiometric={canManageBiometric}
-            canViewAdvances={canViewAdvances}
-            canManageAdvances={canManageAdvances}
-            canViewPenalties={canViewPenalties}
-            canManagePenalties={canManagePenalties}
-            canViewExpenses={canViewExpenses}
-            canApproveExpenses={canApproveExpenses}
-            isHr={isHr}
-            {...(canViewRecruitment !== undefined ? { canViewRecruitment } : {})}
-            {...(canViewAccessExplorer !== undefined ? { canViewAccessExplorer } : {})}
-            hasRecruitment={hasRecruitment}
+            capabilities={capabilities}
             hasInterviews={hasInterviews}
             {...(enabledModules ? { enabledModules } : {})}
             onNavigate={onNavigate}

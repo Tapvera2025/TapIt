@@ -7,6 +7,7 @@ import { createJobContext } from '../../../platform/dal/context.js';
 import { platformDb } from '../../../platform/dal/db.js';
 import { closePools } from '../../../platform/dal/pool.js';
 import { sql } from '../../../platform/dal/sql.js';
+import { dispatchOrganization } from '../../notifications/facade.js';
 import { createDeal } from '../deals/service.js';
 import { createDraft, updateDraft } from '../proposals/service.js';
 import type { CreateDraftInput } from '../proposals/validators.js';
@@ -119,6 +120,19 @@ async function createOpenDealAsAgent(): Promise<string> {
   return deal.id;
 }
 
+async function recipientsOf(requestId: string, event: string) {
+  await dispatchOrganization(ORG);
+  return platformDb.query<{ recipientId: string }>(
+    'migration',
+    'check delivered proposal approvals',
+    sql`SELECT recipient_id AS "recipientId"
+          FROM notification
+         WHERE organization_id = ${ORG}
+           AND type = ${event} AND metadata->>'requestId' = ${requestId}
+         ORDER BY recipient_id`,
+  ).then((rows) => rows.map((row) => row.recipientId));
+}
+
 describe.skipIf(!enabled)('sales approvals service (PostgreSQL)', () => {
   beforeAll(async () => {
     installAuthz();
@@ -192,6 +206,9 @@ describe.skipIf(!enabled)('sales approvals service (PostgreSQL)', () => {
   });
 
   afterAll(async () => {
+    await asOwner('cleanup deliveries',         sql`DELETE FROM notification_delivery WHERE organization_id = ${ORG}`);
+    await asOwner('cleanup notifications',      sql`DELETE FROM notification          WHERE organization_id = ${ORG}`);
+    await asOwner('cleanup notification outbox', sql`DELETE FROM notification_outbox   WHERE organization_id = ${ORG}`);
     await asOwner('cleanup audit outbox',       sql`DELETE FROM audit_outbox        WHERE organization_id = ${ORG}`);
     await asOwner('cleanup approval decisions', sql`DELETE FROM approval_decision   WHERE organization_id = ${ORG}`);
     await asOwner('cleanup approvals',          sql`DELETE FROM approval_request    WHERE organization_id = ${ORG}`);
@@ -233,6 +250,7 @@ describe.skipIf(!enabled)('sales approvals service (PostgreSQL)', () => {
     expect(request.requestedBy).toBe(AGENT);
     expect(request.currentApproverId).toBe(SUPERVISOR);
     expect(request.blockedReason).toBeNull();
+    expect(await recipientsOf(request.id, 'proposal.approval_requested')).toEqual([SUPERVISOR, SUPER_ADMIN].sort());
     expect(request.dimensions.some((d) => d.kind === 'value' && d.status === 'exceeds')).toBe(true);
 
     const dealRow = await asOwner(
@@ -281,6 +299,7 @@ describe.skipIf(!enabled)('sales approvals service (PostgreSQL)', () => {
     expect(request.state).toBe('pending');
     expect(request.currentApproverId).toBeNull();
     expect(request.blockedReason).toBe('no_eligible_approver');
+    expect(await recipientsOf(request.id, 'proposal.approval_requested')).toEqual([SUPER_ADMIN]);
   });
 
   it('a second pending request on the same deal is refused', async () => {
@@ -302,6 +321,7 @@ describe.skipIf(!enabled)('sales approvals service (PostgreSQL)', () => {
     });
     expect(updated.state).toBe('approved');
     expect(updated.decidedBy).toBe(SUPERVISOR);
+    expect(await recipientsOf(request.id, 'proposal.approval_decided')).toEqual([AGENT]);
 
     const dealRow = await asOwner(
       'read deal approval status',
@@ -372,7 +392,16 @@ describe.skipIf(!enabled)('sales approvals service (PostgreSQL)', () => {
       sql`UPDATE approval_request SET sla_due_at = now() - interval '1 hour' WHERE id = ${request.id}`,
     );
 
-    const after = await escalateIfBreached(ctxFor(superAdmin(SUPER_ADMIN)), request.id);
+    const worker = ctxFor({
+      id: '00000000-0000-0000-0000-000000000000',
+      organizationId: ORG,
+      accountType: 'service',
+      sessionVersion: 0,
+      allowedActions: [],
+      allowedResources: [],
+      expiresAt: new Date(0),
+    });
+    const after = await escalateIfBreached(worker, request.id);
     expect(after.state).toBe('escalated');
     expect(after.escalationCount).toBe(1);
     expect(after.currentApproverId).toBe(HOD);
@@ -382,8 +411,9 @@ describe.skipIf(!enabled)('sales approvals service (PostgreSQL)', () => {
       'force sla past again',
       sql`UPDATE approval_request SET sla_due_at = now() - interval '1 hour' WHERE id = ${request.id}`,
     );
-    const retry = await escalateIfBreached(ctxFor(superAdmin(SUPER_ADMIN)), request.id);
+    const retry = await escalateIfBreached(worker, request.id);
     expect(retry.escalationCount).toBe(1);
+    expect(await recipientsOf(request.id, 'proposal.approval_escalated')).toEqual([HOD, SUPER_ADMIN].sort());
   });
 
   it('listPending returns the queue for a supervisor', async () => {

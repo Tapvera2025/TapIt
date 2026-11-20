@@ -89,8 +89,9 @@ export function registerAccessManagementRoutes(): void {
     method: 'GET',
     path: '/api/access/role-change-requests',
     // Listing is a collection read and has no request resource available for
-    // the approval-bearing SoD check. The service still requires Super Admin;
-    // the individual decision route below keeps access:decide-role-change.
+    // the approval-bearing SoD check. The service lists everything for the
+    // Super Admin and, for a holder of access:decide-role-change, the requests
+    // inside that power's reach; the decision route below keeps the action.
     action: 'access:view',
     module: 'access-management',
     handler: async ({ ctx, query }) => {

@@ -23,3 +23,12 @@ export function getClaimsDistribution(): Promise<{ rows: ClaimsDistributionRow[]
 export function getPoolHealth(): Promise<PoolHealthSnapshot> {
   return identityRequest('/api/sales/dashboard/pool-health');
 }
+
+export interface SalesOverviewMetrics {
+  readonly statuses: ReadonlyArray<{ status: string; count: number; stalled: number }>;
+  readonly dailyClaims: ReadonlyArray<{ date: string; count: number }>;
+}
+
+export function getSalesOverviewMetrics(): Promise<SalesOverviewMetrics> {
+  return identityRequest('/api/sales/dashboard/pool-health?view=overview');
+}

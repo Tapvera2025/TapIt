@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ACTIONS } from '@tapcrm/contracts';
+import { ACTIONS, SCOPES, type Scope } from '@tapcrm/contracts';
 
 /**
  * Notification types. Free-form strings in the database (a module adds a type
@@ -17,6 +17,7 @@ export const NOTIFICATION_TYPES = {
   TASK_UPDATED: 'task.updated',
   TASK_STATUS_CHANGED: 'task.status_changed',
   TASK_COMPLETED: 'task.completed',
+  TASK_OVERDUE: 'task.overdue',
 
   // leave (modules/leave/notifications.ts)
   LEAVE_REQUESTED: 'leave.requested',
@@ -37,6 +38,7 @@ export const NOTIFICATION_TYPES = {
   ROLE_CHANGE_REQUESTED: 'access.role_change_requested',
   ROLE_CHANGE_DECIDED: 'access.role_change_decided',
   PLACEMENT_CHANGED: 'employee.placement_changed',
+  ONBOARDING_STEP_OVERDUE: 'onboarding.step_overdue',
 
   // working-day exceptions (modules/shifts/notifications.ts)
   WORKING_DAY_EXCEPTION: 'shifts.working_day_exception',
@@ -71,6 +73,19 @@ export const NOTIFICATION_TYPES = {
   LEAD_REASSIGNED: 'lead.reassigned',
   LEAD_ASSIGNED: 'lead.assigned',
   DEAL_CANCELLED_AFTER_WIN: 'deal.cancelled_after_win',
+  DEAL_ADVANCE_CONFIRMED: 'deal.advance_confirmed',
+  DEAL_ADVANCE_REVERTED: 'deal.advance_reverted',
+  DEAL_WON: 'deal.won',
+  CONTRACT_SIGNED: 'contract.signed',
+  DELIVERY_BRIEF_SUBMITTED: 'delivery.brief_submitted',
+  DELIVERY_BRIEF_REVIEWED: 'delivery.brief_reviewed',
+  PROPOSAL_APPROVAL_REQUESTED: 'proposal.approval_requested',
+  PROPOSAL_APPROVAL_DECIDED: 'proposal.approval_decided',
+  PROPOSAL_APPROVAL_ESCALATED: 'proposal.approval_escalated',
+  PROPOSAL_ACCEPTED: 'proposal.accepted',
+  PROPOSAL_CHANGES_REQUESTED: 'proposal.changes_requested',
+
+  IDENTITY_SUSPICIOUS_SIGN_IN: 'identity.suspicious_sign_in',
 
   // social (modules/social/service.ts)
   SOCIAL_CONNECTION_RECONNECT_REQUIRED: 'social.connection_reconnect_required',
@@ -89,17 +104,26 @@ export type NotificationPriority = (typeof NOTIFICATION_PRIORITIES)[number];
 export const NOTIFICATION_CHANNELS = ['in-app', 'email', 'push', 'whatsapp'] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
+interface NotificationHolders {
+  readonly action: string;
+  readonly departmentId?: string;
+  readonly teamId?: string;
+  readonly userIds?: readonly string[];
+  readonly scope?: Scope;
+}
+
 /**
  * WHO receives it. Fields are unioned; at least one must be present.
  *
  *   users        explicit user ids (any active non-service account)
  *   positions    every active employee in these positions
  *   departments  every active employee in these departments
+ *   superAdmins  every active Super Admin in the organization
  *   holders      every active employee who currently HOLDS `action` — via a
  *                position policy or an unexpired override, honouring an
  *                override that denies — plus Super Admin. Optionally narrowed
- *                to a department/team. This is the authorization-aware form
- *                (NT-1): a person without the action is never selected.
+ *                to a department, team, candidate list or effective scope.
+ *                Multiple holder filters are unioned.
  *
  * The actor (`ctx.principal`) is excluded unless `includeActor` is set.
  */
@@ -107,17 +131,16 @@ export interface NotificationAudience {
   readonly users?: readonly string[];
   readonly positions?: readonly string[];
   readonly departments?: readonly string[];
-  readonly holders?: {
-    readonly action: string;
-    readonly departmentId?: string;
-    readonly teamId?: string;
-  };
+  readonly superAdmins?: boolean;
+  readonly holders?: NotificationHolders | readonly NotificationHolders[];
   readonly excludeUserIds?: readonly string[];
   readonly includeActor?: boolean;
 }
 
 export interface NotifyInput {
   readonly type: NotificationType | (string & {});
+  /** Collapses retries and concurrent producers of the same event while its outbox row is retained. */
+  readonly deduplicationKey?: string;
   readonly priority?: NotificationPriority;
   readonly audience: NotificationAudience;
   readonly title: string;
@@ -131,6 +154,13 @@ export interface NotifyInput {
 }
 
 const uuid = z.string().uuid();
+const holdersSchema = z.object({
+  action: z.string().refine((a) => (ACTIONS as readonly string[]).includes(a), 'unknown registry action'),
+  departmentId: uuid.optional(),
+  teamId: uuid.optional(),
+  userIds: z.array(uuid).min(1).max(1000).optional(),
+  scope: z.enum(SCOPES).optional(),
+});
 
 /** What is stored in `notification_outbox.payload`. Re-validated at dispatch. */
 export const outboxPayloadSchema = z.object({
@@ -154,19 +184,15 @@ export const outboxPayloadSchema = z.object({
       users: z.array(uuid).max(1000).optional(),
       positions: z.array(uuid).max(100).optional(),
       departments: z.array(uuid).max(100).optional(),
-      holders: z
-        .object({
-          action: z.string().refine((a) => (ACTIONS as readonly string[]).includes(a), 'unknown registry action'),
-          departmentId: uuid.optional(),
-          teamId: uuid.optional(),
-        })
-        .optional(),
+      superAdmins: z.boolean().optional(),
+      holders: z.union([holdersSchema, z.array(holdersSchema).min(1).max(10)]).optional(),
       excludeUserIds: z.array(uuid).max(1000).optional(),
       includeActor: z.boolean().optional(),
     })
     .refine(
-      (a) => (a.users?.length ?? 0) + (a.positions?.length ?? 0) + (a.departments?.length ?? 0) > 0 || a.holders !== undefined,
-      'audience is empty: give users, positions, departments or holders',
+      (a) => (a.users?.length ?? 0) + (a.positions?.length ?? 0) + (a.departments?.length ?? 0) > 0
+        || a.superAdmins === true || a.holders !== undefined,
+      'audience is empty: give users, positions, departments, super admins or holders',
     ),
 });
 

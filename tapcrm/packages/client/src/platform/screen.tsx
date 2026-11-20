@@ -1446,6 +1446,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
   }
 
   function startCreateCompany(): void {
+    setActiveSection('platform-companies');
     setForm({ ...INITIAL_FORM });
     setFormMode('create');
     setEditingOrganizationId(null);
@@ -1695,19 +1696,6 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
             className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto pb-16 [scrollbar-gutter:stable]"
           >
           <CompanyPageHero pathname={platformPath} onNavigate={navigatePlatform} homePath="/platform" showGroup={false} />
-          <CompanyPageActionPortal mobileClassName="hidden">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveSection('platform-companies');
-                setCompanyFormOpen(true);
-              }}
-              className="platform-capsule-action platform-capsule-action-primary"
-            >
-              <Icon name="plus" className="size-4" />
-              <span>New company</span>
-            </button>
-          </CompanyPageActionPortal>
           <WorkspacePageContainer className="platform-page-content">
           <section id="platform-overview" className="mb-[22px] scroll-mt-5">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-2 xl:hidden">
@@ -2297,7 +2285,7 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
               id="platform-companies"
               className="w-full scroll-mt-5 rounded-2xl border border-app-border bg-app-surface p-6 shadow-sm max-[560px]:p-[20px_16px]"
             >
-              <div className="flex items-start justify-between gap-[15px] max-[700px]:grid max-[700px]:grid-cols-[minmax(0,1fr)_auto] max-[700px]:gap-x-2">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="mb-[7px] text-[11px] font-bold uppercase tracking-[0.14em] text-app-accent">
                     Tenant management
@@ -2306,10 +2294,20 @@ export function PlatformDashboard({ onLogout }: { onLogout: () => void }) {
                     Companies
                   </h2>
                 </div>
-                <div className="flex flex-wrap items-center justify-end gap-2 max-[700px]:w-full max-[700px]:justify-end">
-                  <span className="rounded-lg border border-app-border bg-app-background px-3 py-2 text-xs font-semibold text-app-muted">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="whitespace-nowrap rounded-lg border border-app-border bg-app-background px-3 py-2 text-xs font-semibold text-app-muted">
                     {orgs.length} total
                   </span>
+                  <CompanyPageActionPortal>
+                    <button
+                      type="button"
+                      onClick={startCreateCompany}
+                      className="platform-capsule-action platform-capsule-action-primary min-h-11 whitespace-nowrap xl:min-h-9"
+                    >
+                      <Icon name="plus" className="size-4 shrink-0" />
+                      <span>New company</span>
+                    </button>
+                  </CompanyPageActionPortal>
                 </div>
               </div>
               <p className="mt-[9px] text-sm text-app-muted">

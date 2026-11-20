@@ -1,5 +1,5 @@
 import { globalAccess } from '@tapcrm/contracts';
-import { AuthorizationError } from '@tapcrm/authz';
+import { AuthorizationError, effectivePolicy } from '@tapcrm/authz';
 import { ApplicationError } from '../../errors.js';
 import { db } from '../../platform/dal/db.js';
 import type { RequestContext } from '../../platform/dal/context.js';
@@ -22,10 +22,19 @@ export interface AuditExportInput {
   readonly to?: Date | undefined;
 }
 
-export function assertAuditExporter(ctx: RequestContext): void {
-  if (!globalAccess(ctx.principal)) {
-    throw new AuthorizationError('audit:export', 'not_allowed', 'Only Super Admin can export audit data.');
-  }
+/**
+ * `audit:export` is "Super Admin only" in the sense that only the Super Admin
+ * may grant it; a position the Super Admin gave it to may export too.
+ */
+export async function assertAuditExporter(ctx: RequestContext): Promise<void> {
+  if (globalAccess(ctx.principal)) return;
+  const policy = await effectivePolicy(ctx, 'audit:export');
+  if (policy?.allowed) return;
+  throw new AuthorizationError(
+    'audit:export',
+    'not_allowed',
+    'Exporting audit data needs the audit export power, which only the Super Admin can grant.',
+  );
 }
 
 export async function assertExportRateLimit(ctx: RequestContext): Promise<void> {
@@ -123,7 +132,7 @@ export async function streamAuditExport(
   input: AuditExportInput,
   write: (chunk: string) => void,
 ): Promise<number> {
-  assertAuditExporter(ctx);
+  await assertAuditExporter(ctx);
   await assertExportRateLimit(ctx);
 
   const query: AuditQuery = {

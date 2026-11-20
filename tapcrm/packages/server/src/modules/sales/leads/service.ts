@@ -9,6 +9,7 @@ import { listTerritoriesForRouting } from '../territories/repository.js';
 import { getRoutingConfiguration } from '../territories/service.js';
 import { routeLead } from '../territories/router.js';
 import { readPresenceToday } from '../../live-status/facade.js';
+import { NOTIFICATION_TYPES, notify } from '../../notifications/facade.js';
 import { normalizeLeadEmail, normalizeLeadPhone, toContactE164 } from './normalization.js';
 import { leadPolicy } from './policy.js';
 import { LeadNotFoundError, LeadValidationError, LEAD_ERROR_CODES } from './errors.js';
@@ -154,7 +155,20 @@ export async function createLead(ctx: RequestContext, input: CreateLeadInput): P
     const resolvedTeamId = salesTeamId;
     const id = await insertLead(tx, ctx.organizationId, { sourceId: source.id, campaignId: campaign?.id ?? null, previousLeadId: input.previousLeadId ?? null, ownerId, currentHolderId: ownerId, territoryId: resolvedTerritoryId, salesTeamId: resolvedTeamId, salesPoolId, status, routingStatus, contactName: input.contactName, companyName: input.companyName ?? null, phone: input.phone ?? null, email: input.email ?? null, phoneNormalized: phone, emailNormalized: email, contactId, companyId, requirement: input.requirement ?? null, location: input.location ?? null, languagePreference: input.languagePreference ?? null, intakeNotes: input.notes ?? null, createdBy: ctx.principal.id });
     await insertActivity(tx, ctx.organizationId, id, 'lead.created', ctx.principal.id, { routingStatus });
-    if (ownerId) await insertActivity(tx, ctx.organizationId, id, 'lead.assigned', ctx.principal.id, { ownerId });
+    if (ownerId) {
+      await insertActivity(tx, ctx.organizationId, id, 'lead.assigned', ctx.principal.id, { ownerId });
+      if (ownerId !== ctx.principal.id) {
+        await notify(tx, ctx, {
+          type: NOTIFICATION_TYPES.LEAD_ASSIGNED,
+          priority: 'operational',
+          audience: { users: [ownerId] },
+          title: 'New lead assigned',
+          body: 'An inbound lead was routed to you.',
+          link: `/company/sales/leads/${id}`,
+          metadata: { leadId: id },
+        });
+      }
+    }
     if (input.previousLeadId) await insertActivity(tx, ctx.organizationId, id, 'lead.reengaged', ctx.principal.id, { previousLeadId: input.previousLeadId });
     if (duplicates.length) await insertActivity(tx, ctx.organizationId, id, 'duplicate.warning', ctx.principal.id, { count: duplicates.length, leadIds: duplicates.map((duplicate) => duplicate.leadId) });
     await insertAudit(tx, ctx, 'lead.created', id, null, { ownerId, currentHolderId: ownerId, routingStatus, sourceId: source.id });
@@ -168,6 +182,7 @@ function queryFilter(query: LeadListQuery, scope: SqlFragment): SqlFragment {
   const filters: SqlFragment[] = [scope];
   if (query.status !== 'all') filters.push(sql`l.status = ${query.status}`);
   if (query.ownerId) filters.push(sql`l.owner_id = ${query.ownerId}`);
+  if (query.currentHolderId) filters.push(sql`l.current_holder_id = ${query.currentHolderId}`);
   if (query.sourceId) filters.push(sql`l.source_id = ${query.sourceId}`);
   if (query.campaignId) filters.push(sql`l.campaign_id = ${query.campaignId}`);
   if (query.territoryId) filters.push(sql`l.territory_id = ${query.territoryId}`);

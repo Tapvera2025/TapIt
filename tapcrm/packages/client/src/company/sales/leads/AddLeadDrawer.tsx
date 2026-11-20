@@ -17,6 +17,13 @@ import {
   offerDuplicateChoices,
 } from './addLead-helpers.js';
 import { ErrorToast } from '../../../ui/ErrorToast.js';
+import {
+  formatFullPhone,
+  PHONE_COUNTRY_OPTIONS,
+  sanitizePhoneInput,
+  splitPhoneAndCountryCode,
+} from '../../employees/phone.js';
+import { Icon } from '../../../ui/Icon.js';
 
 /**
  * Add-Lead drawer (R1 plan step 1.12). Right-slide panel with:
@@ -53,6 +60,7 @@ export function AddLeadDrawer({
   mode = 'agent',
 }: AddLeadDrawerProps): React.JSX.Element {
   const [contactName, setContactName] = useState('');
+  const [phoneCountryCode, setPhoneCountryCode] = useState('+91');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [sourceId, setSourceId] = useState(sources[0]?.id ?? '');
@@ -78,7 +86,8 @@ export function AddLeadDrawer({
     };
   }, []);
 
-  const query = buildDuplicateQuery(phone, email);
+  const fullPhone = formatFullPhone(phoneCountryCode, phone);
+  const query = buildDuplicateQuery(fullPhone, email);
   const canLookup = hasEnoughInputForLookup(query);
 
   useEffect(() => {
@@ -113,7 +122,7 @@ export function AddLeadDrawer({
   const canSubmit =
     !submitting &&
     contactName.trim().length > 0 &&
-    (normalizePhoneForLookup(phone) !== null || normalizeEmailForLookup(email) !== null) &&
+    (normalizePhoneForLookup(fullPhone) !== null || normalizeEmailForLookup(email) !== null) &&
     sourceId.length > 0;
 
   async function submit(): Promise<void> {
@@ -124,7 +133,7 @@ export function AddLeadDrawer({
       const result = await createLead(
         {
           contactName: contactName.trim(),
-          phone: phone.trim() || undefined,
+          phone: fullPhone || undefined,
           email: email.trim() || undefined,
           sourceId,
           companyName: companyName.trim() || undefined,
@@ -181,7 +190,57 @@ export function AddLeadDrawer({
 
         <section className="grid gap-4">
           <Field label="Contact name" value={contactName} onChange={setContactName} required />
-          <Field label="Phone" value={phone} onChange={setPhone} placeholder="+91 98765 43210" hint="Include the country code. A phone or an email is needed." />
+          <div className="text-xs font-semibold text-app-muted">
+            <span className="mb-2 block">Phone</span>
+            <div className="grid min-w-0 grid-cols-[5.25rem_minmax(0,1fr)] gap-2">
+              <div className="relative rounded-lg focus-within:ring-2 focus-within:ring-app-accent">
+                <select
+                  aria-label="Phone country code"
+                  autoComplete="tel-country-code"
+                  value={phoneCountryCode}
+                  onChange={(event) => setPhoneCountryCode(event.target.value)}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                >
+                  {!PHONE_COUNTRY_OPTIONS.some((option) => option.code === phoneCountryCode) && (
+                    <option value={phoneCountryCode}>{phoneCountryCode}</option>
+                  )}
+                  {PHONE_COUNTRY_OPTIONS.map((option) => (
+                    <option key={`${option.country}-${option.code}`} value={option.code}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none flex h-full items-center justify-between gap-1 rounded-lg border border-app-border bg-app-background px-2.5 text-sm tabular-nums text-app-foreground"
+                >
+                  {phoneCountryCode}
+                  <Icon name="chevron-down" className="size-3.5 shrink-0 text-app-muted" />
+                </span>
+              </div>
+              <input
+                type="tel"
+                aria-label="Phone number"
+                autoComplete="tel-national"
+                value={phone}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (value.trimStart().startsWith('+')) {
+                    const parsed = splitPhoneAndCountryCode(value, phoneCountryCode);
+                    setPhoneCountryCode(parsed.countryCode);
+                    setPhone(sanitizePhoneInput(parsed.nationalNumber));
+                  } else {
+                    setPhone(sanitizePhoneInput(value));
+                  }
+                }}
+                placeholder="98765 43210"
+                className="ui-form-control w-full min-w-0 px-3 py-2.5 text-sm outline-none"
+              />
+            </div>
+            <span className="mt-1 block font-normal leading-5">
+              Select a country code. A phone number or email is needed.
+            </span>
+          </div>
           <Field label="Email" value={email} onChange={setEmail} type="email" />
           <label className="text-xs font-semibold text-app-muted">
             <span className="mb-2 block">Source</span>

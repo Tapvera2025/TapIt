@@ -198,7 +198,8 @@ describe('My Notepad navigation registration', () => {
     expect(myNotepadNavItem.label).toBe('My Notepad');
     expect(myNotepadNavItem.path).toBe('/company/my-notepad');
     expect(myNotepadNavItem.icon).toBe('notepad');
-    expect(myNotepadNavItem.requiredAction).toBeUndefined();
+    // Open to everyone: its rule names no power.
+    expect(myNotepadNavItem.access).toEqual({});
 
     const overviewGroup = companyNavigation.find((g) => g.label === 'Overview');
     expect(overviewGroup).toBeDefined();
@@ -299,12 +300,6 @@ describe('My Notepad navigation registration', () => {
             },
             organizationName: 'Acme Corp',
             accountType: config.accountType,
-            canRequestRoleChange: config.canRequestRoleChange,
-            canViewAudit: config.canViewAudit,
-            canViewEmployees: config.canViewEmployees,
-            canViewTerritories: false,
-            canViewLeads: false,
-            canViewHandovers: false,
             onNavigate: () => {},
             onLogout: () => {},
             open: true,

@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Card } from '../../../../ui/index.js';
 import { getAllHandovers, type Handover } from '../../leads/api.js';
 import { partitionHandovers, relativeTime } from '../myWork-helpers.js';
-import { MyWorkSection } from './Shell.js';
+import { MyWorkRow, MyWorkSection } from './Shell.js';
 import { MY_WORK_ANCHORS } from '../../guide/page-guidance.js';
 
 const POLL_INTERVAL_MS = 30_000;
@@ -54,31 +53,19 @@ export function HandoverOffersSection({
       error={error}
       empty="No live calls waiting for you."
     >
-      <Card className="p-0">
-        <ul className="divide-y divide-app-border">
+      <ul className="mt-3 divide-y divide-app-border border-t border-app-border">
           {pendingForMe.map((handover) => (
-            <li key={handover.id} className="flex items-center justify-between gap-3 p-4">
-              <div>
-                <p className="font-semibold">
-                  From {handover.fromUserName ?? 'another agent'}
-                  {handover.handoverMode === 'team_queue' ? ' · team queue' : ''}
-                </p>
-                <p className="mt-1 text-xs text-app-muted">
-                  Offered {relativeTime(handover.offeredAt)}
-                  {handover.reason ? ` · ${handover.reason}` : ''}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="rounded-lg border border-app-border px-3 py-1.5 text-xs font-bold hover:border-app-accent"
-                onClick={() => onNavigate(`/company/sales/leads/${handover.leadId}`)}
-              >
-                Review
-              </button>
-            </li>
+            <MyWorkRow
+              key={handover.id}
+              icon="arrow-left-right"
+              title={handover.leadContactName || 'Lead handover'}
+              detail={[`From ${handover.fromUserName ?? 'another agent'}`, relativeTime(handover.offeredAt), handover.reason].filter(Boolean).join(' · ')}
+              action="Review handover"
+              urgent
+              onAction={() => onNavigate(`/company/sales/leads/${handover.leadId}?focus=handover`)}
+            />
           ))}
         </ul>
-      </Card>
     </MyWorkSection>
   );
 }

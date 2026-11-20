@@ -25,7 +25,7 @@ export interface UseBidPool {
   readonly addLocally: (card: MaskedBidCard) => void;
 }
 
-export function useBidPool(): UseBidPool {
+export function useBidPool(enabled = true): UseBidPool {
   const [cards, setCards] = useState<readonly MaskedBidCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +52,7 @@ export function useBidPool(): UseBidPool {
   }, [applySnapshot]);
 
   useEffect(() => {
+    if (!enabled) return;
     mounted.current = true;
     void refresh();
     const timer = setInterval(() => {
@@ -61,7 +62,7 @@ export function useBidPool(): UseBidPool {
       mounted.current = false;
       clearInterval(timer);
     };
-  }, [refresh]);
+  }, [enabled, refresh]);
 
   const removeLocally = useCallback((leadId: string, options: { cooldown?: boolean } = {}) => {
     if (options.cooldown) cooldown.current.passUntil(leadId);

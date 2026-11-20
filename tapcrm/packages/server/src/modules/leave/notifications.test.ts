@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Tx } from '../../platform/dal/db.js';
 
 import type * as Facade from '../notifications/facade.js';
 
@@ -13,7 +14,8 @@ import { notifyLeaveDecided, notifyLeaveRequested } from './notifications.js';
 
 const HR = '11111111-1111-4111-8111-111111111111';
 const RAVI = '22222222-2222-4222-8222-222222222222';
-const tx = {} as never;
+const maybeOne = vi.fn<() => Promise<{ reportsTo: string } | null>>();
+const tx = { maybeOne } as unknown as Tx;
 const asRavi = { organizationId: 'org', principal: { id: RAVI } } as never;
 const asHr = { organizationId: 'org', principal: { id: HR } } as never;
 const call = (n = 0): Record<string, unknown> => vi.mocked(notify).mock.calls[n]![2] as never;
@@ -29,7 +31,10 @@ const request = {
   recurrenceEnd: null,
 };
 
-beforeEach(() => vi.mocked(notify).mockClear());
+beforeEach(() => {
+  vi.mocked(notify).mockClear();
+  maybeOne.mockResolvedValue(null);
+});
 
 describe('leave notifications', () => {
   it('asks everyone who can decide, operationally, and points at the queue', async () => {
@@ -42,6 +47,21 @@ describe('leave notifications', () => {
       body: '10–12 Nov 2026 (3 days)',
       link: '/company/leave/queue',
       metadata: { leaveRequestId: 'leave-1' },
+    });
+  });
+
+  it('also includes the reporting manager when they can acknowledge', async () => {
+    const managerId = '33333333-3333-4333-8333-333333333333';
+    maybeOne.mockResolvedValueOnce({ reportsTo: managerId });
+    await notifyLeaveRequested(tx, asRavi, request, 'Casual Leave');
+    expect(call()).toMatchObject({
+      audience: {
+        holders: [
+          { action: 'leave:decide' },
+          { action: 'leave:acknowledge', userIds: [managerId] },
+        ],
+        excludeUserIds: [RAVI],
+      },
     });
   });
 

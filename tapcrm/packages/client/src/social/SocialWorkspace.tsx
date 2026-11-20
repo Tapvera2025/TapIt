@@ -37,6 +37,7 @@ import {
   type SocialSettings,
 } from './types.js';
 import { ErrorToast } from '../ui/ErrorToast.js';
+import './social-workspace.css';
 
 const sections = [
   { id: 'overview', label: 'Overview', icon: 'grid' },
@@ -342,10 +343,10 @@ export function SocialWorkspace({
       }
     >
       {section !== 'connections' && (
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="social-toolbar">
           <ClientSelector selected={client} onSelect={chooseClient} />
           {settings && (
-            <p className="text-xs text-app-muted">
+            <p className="min-w-0 break-words text-xs text-app-muted">
               <Icon name="clock" className="mr-1 inline size-3.5" />
               {settings.timezone}
               {settings.approvalRequired ? ' · Approval required' : ''}
@@ -417,19 +418,21 @@ export function SocialWorkspace({
           )}
           {section === 'create' &&
             (canManage ? (
-              <Composer
-                key={`${client.id}:${editing?.id ?? 'new'}`}
-                clientId={client.id}
-                accounts={accounts}
-                settings={settings}
-                {...(editing ? { post: editing } : {})}
-                canPublish={canPublish}
-                onSaved={() => {
-                  changed();
-                  navigate('planner');
-                }}
-                onAccounts={() => navigate('accounts')}
-              />
+              <div className="social-composer">
+                <Composer
+                  key={`${client.id}:${editing?.id ?? 'new'}`}
+                  clientId={client.id}
+                  accounts={accounts}
+                  settings={settings}
+                  {...(editing ? { post: editing } : {})}
+                  canPublish={canPublish}
+                  onSaved={() => {
+                    changed();
+                    navigate('planner');
+                  }}
+                  onAccounts={() => navigate('accounts')}
+                />
+              </div>
             ) : (
               <Notice error>
                 Your role does not have permission to create social posts.
@@ -514,7 +517,7 @@ export function SocialWorkspace({
                   disabled={connecting}
                   className="w-full rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm placeholder:text-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent disabled:opacity-50"
                 />
-                <div className="flex items-center justify-between pb-1">
+                <div className="social-toolbar pb-1">
                   <span className="text-xs text-app-muted">
                     {selectedExternalIds.length} of {available.length} selected
                   </span>
@@ -559,7 +562,7 @@ export function SocialWorkspace({
                       }
                     />
                     <PlatformMark platform={candidate.platform} small />
-                    <span>
+                    <span className="min-w-0 [overflow-wrap:anywhere]">
                       <span className="block text-sm font-semibold">
                         {candidate.name}
                       </span>
@@ -592,7 +595,7 @@ export function SocialWorkspace({
                 platform account and granted the required permissions.
               </Notice>
             )}
-            <div className="flex flex-wrap gap-2">
+            <div className="social-actions">
               <Button
                 disabled={connecting || !selectedExternalIds.length}
                 onClick={() => void confirmAccounts()}

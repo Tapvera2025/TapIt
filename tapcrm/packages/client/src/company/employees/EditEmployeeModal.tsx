@@ -109,7 +109,7 @@ export function EditEmployeeModal({
   departments,
   teams,
   designations,
-  isSuperAdmin,
+  canChangePlacement,
   canRequestRoleChange,
   weekdaySchedules,
   onClose,
@@ -121,7 +121,8 @@ export function EditEmployeeModal({
   teams: CompanyTeam[];
   designations: CompanyDesignation[];
   weekdaySchedules: WeekdaySchedule[];
-  isSuperAdmin: boolean;
+  /** Holds users:change-placement: the Super Admin, or a position the Super Admin gave it to. */
+  canChangePlacement: boolean;
   canRequestRoleChange: boolean;
   onClose: () => void;
   onSaved: (message: string) => void;
@@ -425,7 +426,7 @@ export function EditEmployeeModal({
           )}
 
           {tab === 'placement' && (
-            isSuperAdmin ? (
+            canChangePlacement ? (
               <form onSubmit={(e) => void savePlacement(e)} className="grid gap-4 md:grid-cols-2">
                 <Choice
                   label="Department"
@@ -477,7 +478,7 @@ export function EditEmployeeModal({
                 <p><span className="text-app-muted">Position:</span> {profile.positionName ?? '—'}</p>
                 <p><span className="text-app-muted">Reports to:</span> {profile.reportsToName ?? 'Whoever holds the position above'}</p>
                 <Notice>
-                  Only the Super Admin changes positions directly.
+                  Changing positions directly needs the change-placement power.
                   {canRequestRoleChange ? ' You can request a position change for the Super Admin to approve.' : ''}
                 </Notice>
                 {canRequestRoleChange && onRequestRoleChange && (

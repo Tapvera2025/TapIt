@@ -3,6 +3,8 @@ import type { SqlFragment } from '@tapcrm/authz';
 import type { Tx } from '../dal/db.js';
 import { ORGANIZATION_TEMPLATE } from './template.js';
 import {
+  MATRIX_POSITIONS,
+  PERMISSION_MATRIX,
   expandPermissionCell,
   provisionDefaultPositionPolicies,
   type RegistryActionDefinition,
@@ -405,10 +407,19 @@ describe('interviewers (assigned by HR from any position)', () => {
     policies.map((p) => `${p.action}:${p.scope}`).sort();
 
   it('gives a position with no recruitment access only interview feedback, as a participant', () => {
-    for (const position of ['sub-team-manager', 'dev-dept-head', 'project-manager', 'sales-head']) {
+    for (const position of ['sub-team-manager', 'dev-dept-head', 'project-manager', 'sales-head', 'base-employee']) {
       expect(actions(expandPermissionCell('recruitment', '—', position, recruitment))).toEqual([
         'recruitment:submit-round-feedback:participant',
       ]);
+    }
+  });
+
+  it('leaves the Recruitment workspace to HR in the starter matrix', () => {
+    const column = (position: string) => PERMISSION_MATRIX.recruitment[MATRIX_POSITIONS.indexOf(position as (typeof MATRIX_POSITIONS)[number])];
+    expect(column('hr')).toBe('department');
+    expect(column('hr-executive')).toBe('department');
+    for (const position of MATRIX_POSITIONS.filter((p) => !['super-admin', 'hr', 'hr-executive'].includes(p))) {
+      expect(column(position), position).toBe('—');
     }
   });
 

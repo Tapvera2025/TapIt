@@ -3,9 +3,10 @@ import { useTheme, type Theme } from '../../theme/ThemeContext.js';
 import { Card, Page } from '../../ui/index.js';
 import { organizationApi } from '../../organization/api/organizationApi.js';
 import { useEffect, useState } from 'react';
+import { ProposalBrandingSettings } from './ProposalBrandingSettings.js';
 
 const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD', 'AUD', 'CAD'];
-export function SettingsPage({ showCurrencyManagement = false }: { showCurrencyManagement?: boolean }): React.JSX.Element {
+export function SettingsPage({ showCurrencyManagement = false, showProposalBranding = false }: { showCurrencyManagement?: boolean; showProposalBranding?: boolean }): React.JSX.Element {
   const { theme, setTheme } = useTheme();
   const [supportedCurrencies, setSupportedCurrencies] = useState<string[]>(['INR']);
   const [defaultCurrency, setDefaultCurrency] = useState('INR');
@@ -60,6 +61,7 @@ export function SettingsPage({ showCurrencyManagement = false }: { showCurrencyM
             ))}
           </div>
         </Card>
+        {showProposalBranding && <ProposalBrandingSettings />}
         {showCurrencyManagement && <Card>
           <div><h2 className="font-display text-xl font-bold">Currency management</h2><p className="mt-1 text-sm text-app-muted">Choose the currencies available for employee advances and set the default.</p></div>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">

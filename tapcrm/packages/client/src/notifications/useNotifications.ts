@@ -14,6 +14,29 @@ const PAGE_SIZE = 20;
 const POLL_FALLBACK_MS = 60_000;
 const RECONNECT_MS = 5_000;
 
+/** The socket calls this module listens to on the person's own channel. */
+export interface PersonalChannelSocket {
+  on(event: 'permissions:changed', listener: () => void): unknown;
+  on(event: 'disconnect', listener: (reason: string) => void): unknown;
+}
+
+/**
+ * Every socket joins the person's own room, so this always-open one also hears
+ * when their powers change (RT-3) — on any page, not only those that open the
+ * live connection. The server then closes the person's sockets so they rejoin
+ * with the new rooms; socket.io does not retry a server-side close by itself,
+ * and the same close happens when the access token expires.
+ */
+export function listenOnPersonalChannel(
+  socket: PersonalChannelSocket,
+  handlers: { readonly onPermissionsChanged?: (() => void) | undefined; readonly reconnect: () => void },
+): void {
+  socket.on('permissions:changed', () => handlers.onPermissionsChanged?.());
+  socket.on('disconnect', (reason) => {
+    if (reason === 'io server disconnect') handlers.reconnect();
+  });
+}
+
 /**
  * The client half of the notification engine.
  *
@@ -22,7 +45,10 @@ const RECONNECT_MS = 5_000;
  * missed socket event costs nothing: the next fetch, or the 60-second fallback
  * poll while disconnected, catches up.
  */
-export function useNotifications(): {
+export function useNotifications(options: {
+  /** Called when the server says this person's powers changed. */
+  readonly onPermissionsChanged?: () => void;
+} = {}): {
   items: AppNotification[];
   unreadCount: number;
   hasMore: boolean;
@@ -43,6 +69,9 @@ export function useNotifications(): {
   const [error, setError] = useState('');
   const [incoming, setIncoming] = useState<AppNotification | null>(null);
   const knownIds = useRef<Set<string> | null>(null);
+  // Read through a ref so a new callback never reopens the socket.
+  const onPermissionsChanged = useRef(options.onPermissionsChanged);
+  onPermissionsChanged.current = options.onPermissionsChanged;
   const mounted = useRef(true);
 
   const refresh = useCallback(async (announce = false): Promise<void> => {
@@ -90,12 +119,18 @@ export function useNotifications(): {
     });
     // A middleware rejection (expired token) is not auto-retried by socket.io.
     // Touching the API refreshes the access token, then we reconnect.
-    socket.on('connect_error', () => {
+    const reconnectSoon = (): void => {
+      if (retry) clearTimeout(retry);
       retry = setTimeout(() => {
         void getUnreadCount()
           .catch(() => undefined)
           .finally(() => socket?.connect());
       }, RECONNECT_MS);
+    };
+    socket.on('connect_error', reconnectSoon);
+    listenOnPersonalChannel(socket, {
+      onPermissionsChanged: () => onPermissionsChanged.current?.(),
+      reconnect: reconnectSoon,
     });
 
     const poll = setInterval(() => {

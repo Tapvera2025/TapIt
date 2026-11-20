@@ -15,6 +15,7 @@ import { missingScheduleNotice } from './schedule-notice.js';
 import { createEmployee, getNextEmployeeId, type CreateEmployeeInput } from '../api/employeesApi.js';
 import { getIdentitySessionSnapshot, IdentityApiError } from '../../identity/api/authApi.js';
 import { ConfirmCancelButton } from '../../ui/ConfirmDiscardModal.js';
+import { Icon } from '../../ui/Icon.js';
 import {
   PHONE_COUNTRY_OPTIONS,
   formatFullPhone,
@@ -509,24 +510,38 @@ export function AddEmployeeWizardModal({
                 <FieldError message={errors.email} />
                 <p className="mt-1 text-[11px] text-app-muted">The password setup link is sent here.</p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label htmlFor="wizard-phone">Phone *</Label>
-                <div className="flex gap-2">
-                  <select
-                    aria-label="Country code"
-                    value={form.phoneCountryCode}
-                    onChange={(e) => set('phoneCountryCode', e.target.value)}
-                    className={`${inputClass()} w-28 shrink-0 px-2`}
-                  >
-                    {PHONE_COUNTRY_OPTIONS.map((option) => (
-                      <option key={`${option.country}-${option.code}`} value={option.code}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                <div className="grid min-w-0 grid-cols-[5.25rem_minmax(0,1fr)] gap-2">
+                  <div className="relative rounded-lg focus-within:ring-2 focus-within:ring-app-accent">
+                    <select
+                      aria-label="Phone country code"
+                      autoComplete="tel-country-code"
+                      value={form.phoneCountryCode}
+                      onChange={(e) => set('phoneCountryCode', e.target.value)}
+                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    >
+                      {!PHONE_COUNTRY_OPTIONS.some((option) => option.code === form.phoneCountryCode) && (
+                        <option value={form.phoneCountryCode}>{form.phoneCountryCode}</option>
+                      )}
+                      {PHONE_COUNTRY_OPTIONS.map((option) => (
+                        <option key={`${option.country}-${option.code}`} value={option.code}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none flex h-full items-center justify-between gap-1 rounded-lg border border-app-border bg-app-background px-2.5 text-sm tabular-nums"
+                    >
+                      {form.phoneCountryCode}
+                      <Icon name="chevron-down" className="size-3.5 shrink-0 text-app-muted" />
+                    </span>
+                  </div>
                   <input
                     id="wizard-phone"
                     type="tel"
+                    autoComplete="tel-national"
                     value={form.phone}
                     onChange={(e) => {
                       const value = e.target.value;
@@ -543,19 +558,19 @@ export function AddEmployeeWizardModal({
                       }
                     }}
                     placeholder="98765 43210"
-                    className={`${inputClass(errors.phone)} min-w-0 flex-1`}
+                    className={`${inputClass(errors.phone)} min-w-0`}
                   />
                 </div>
                 <FieldError message={errors.phone} />
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label htmlFor="wizard-joiningDate">Joining date *</Label>
                 <input
                   id="wizard-joiningDate"
                   type="date"
                   value={form.joiningDate}
                   onChange={(e) => set('joiningDate', e.target.value)}
-                  className={inputClass(errors.joiningDate)}
+                  className={`${inputClass(errors.joiningDate)} block min-w-0`}
                 />
                 <FieldError message={errors.joiningDate} />
               </div>

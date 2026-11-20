@@ -27,6 +27,7 @@ import { globalAccess } from '@tapcrm/contracts';
 import { sql } from '../../../platform/dal/sql.js';
 import { assertNotOwnDealMoney, DealNotFoundError } from './service.js';
 import { findDeal, insertDealAudit, lockDeal, markWonRow } from './repository.js';
+import { notifyDealMilestone } from './notifications.js';
 import type { Deal } from './types.js';
 import { evaluateReadiness, readinessForClose, type ReadinessReport } from './won-readiness.js';
 
@@ -108,6 +109,7 @@ export async function recordWin(ctx: RequestContext, dealId: string): Promise<De
         responsibleCloserId: locked.responsibleCloserId,
       },
     );
+    await notifyDealMilestone(tx, ctx, locked, 'won');
   });
 
   const won = await findDeal(ctx, dealId);

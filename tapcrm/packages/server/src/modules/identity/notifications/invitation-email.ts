@@ -1,5 +1,6 @@
 import { loadConfig } from '../../../config.js';
 import { escapeHtml, sendEmail } from '../../../platform/email/index.js';
+import { renderEmployeeSetupEmail } from './employee-setup-email.js';
 
 export interface AdminInvitationEmail {
   readonly to: string;
@@ -55,33 +56,12 @@ export async function sendEmployeeInvitation(
   const config = loadConfig();
   const hours = input.expiresHours ?? 72;
   const url = `${config.CLIENT_ORIGIN}/employee/setup?token=${encodeURIComponent(input.invitationToken)}&org=${encodeURIComponent(input.organizationCode)}`;
-  const safeUrl = escapeHtml(url);
-  const safeName = input.fullName ? escapeHtml(input.fullName) : null;
-
-  await sendEmail({
+  await sendEmail(renderEmployeeSetupEmail({
     to: input.email,
-    subject: 'TapCRM — Employee Account Setup',
-    text: [
-      `Welcome to TapCRM${input.fullName ? `, ${input.fullName}` : ''}.`,
-      '',
-      'Your employee account has been created.',
-      'Please configure your permanent password using the secure link below:',
-      url,
-      '',
-      `This setup link expires in ${hours} hours and can only be used once.`,
-      'If you were not expecting this invitation, contact your administrator.',
-    ].join('\n'),
-    html: [
-      '<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">',
-      '<h2>Welcome to TapCRM</h2>',
-      `<p>${safeName ? `Hello <strong>${safeName}</strong>, your` : 'Your'} employee account has been created.</p>`,
-      '<p>Please choose your permanent password to complete your account setup:</p>',
-      `<p><a href="${safeUrl}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;">Set Up Password</a></p>`,
-      `<p style="font-size: 13px; color: #64748b;">This link is single-use and will expire in ${hours} hours.</p>`,
-      '<p style="font-size: 12px; color: #94a3b8;">If you were not expecting this invitation, you can safely ignore this email.</p>',
-      '</div>',
-    ].join(''),
-  });
+    setupUrl: url,
+    expiresHours: hours,
+    fullName: input.fullName,
+  }));
 
   return url;
 }

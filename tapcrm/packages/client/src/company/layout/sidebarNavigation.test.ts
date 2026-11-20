@@ -3,21 +3,13 @@ import { buildSidebarNavigation } from './sidebarNavigation.js';
 import { isDestinationModuleEnabled } from './navigation.js';
 
 const labels = (groups: ReturnType<typeof buildSidebarNavigation>): string[] =>
-  groups.flatMap((group) => group.items.map((item) => item.label));
+  groups.flatMap((group) => group.items.flatMap((item) => [item.label, ...(item.children ?? []).map((child) => child.label)]));
 const groupNames = (groups: ReturnType<typeof buildSidebarNavigation>): string[] =>
   groups.map((group) => group.label);
 
 describe('buildSidebarNavigation: switched-off modules', () => {
-  const superAdmin = {
-    accountType: 'super-admin',
-    canManagePayroll: true,
-    canManagePayrollConfig: true,
-    canViewAccounting: true,
-    canViewSocial: true,
-    canViewSeo: true,
-    canViewLeads: true,
-    canViewAttendanceReports: true,
-  };
+  // The Super Admin holds every power of every enabled module.
+  const superAdmin = { accountType: 'super-admin' };
 
   it('offers a module only while it is enabled, super-admin included', () => {
     const on = buildSidebarNavigation({
@@ -48,7 +40,10 @@ describe('buildSidebarNavigation: switched-off modules', () => {
   });
 
   it('never shows an expandable entry with nothing inside it', () => {
-    const none = buildSidebarNavigation({ accountType: 'employee', canViewLeads: false, canViewCallbacks: true });
+    const none = buildSidebarNavigation({
+      accountType: 'employee',
+      capabilities: [{ action: 'callbacks:view', scope: 'team' }],
+    });
     for (const group of none) {
       for (const item of group.items) {
         if (item.children) expect(item.children.length).toBeGreaterThan(0);
@@ -62,13 +57,72 @@ describe('buildSidebarNavigation: switched-off modules', () => {
   });
 });
 
+describe('buildSidebarNavigation: position powers', () => {
+  const employee = (capabilities: { action: string; scope: string }[]) =>
+    labels(buildSidebarNavigation({ accountType: 'employee', capabilities }));
+
+  it('shows an entry exactly when the power behind its page is held', () => {
+    expect(employee([])).not.toContain('Tasks');
+    expect(employee([{ action: 'tasks:view', scope: 'own' }])).toContain('Tasks');
+    expect(employee([])).not.toContain('My Payslips');
+    expect(employee([{ action: 'payroll:view', scope: 'own' }])).toContain('My Payslips');
+    expect(employee([])).not.toContain('Holidays');
+    expect(employee([{ action: 'holidays:view', scope: 'department' }])).toContain('Holidays');
+  });
+
+  it('needs reach beyond the holder for screens about other people', () => {
+    expect(employee([{ action: 'attendance:view', scope: 'own' }])).not.toContain('Attendance Report');
+    expect(employee([{ action: 'attendance:view', scope: 'team' }])).toContain('Attendance Report');
+    expect(employee([{ action: 'advance:view', scope: 'own' }])).not.toContain('Advance Requests');
+    expect(employee([{ action: 'advance:view', scope: 'team' }])).toContain('Advance Requests');
+  });
+
+  it('lists a person\'s own penalties and TA next to the management screens', () => {
+    const hr = employee([
+      { action: 'penalty:view', scope: 'all-people' },
+      { action: 'penalty:view-own', scope: 'own' },
+      { action: 'ta:view', scope: 'all-people' },
+      { action: 'ta:manage', scope: 'all-people' },
+      { action: 'ta:view-own', scope: 'own' },
+      // TA Management loads the people and departments alongside the report.
+      { action: 'users:view', scope: 'all-people' },
+      { action: 'org:view-structure', scope: 'department' },
+    ]);
+    for (const label of ['Penalties', 'My Penalties', 'TA Management', 'My TA']) expect(hr).toContain(label);
+  });
+
+  it('offers Organization and Geofencing screens to positions given those powers', () => {
+    const admin = employee([
+      { action: 'org:view-structure', scope: 'department' },
+      { action: 'org:manage-teams', scope: 'department' },
+      { action: 'identity:manage-geofence', scope: 'all-people' },
+    ]);
+    expect(admin).toContain('Teams');
+    expect(admin).toContain('Org Chart');
+    expect(admin).toContain('Geofencing');
+    // Editors need the power that saves them.
+    expect(admin).not.toContain('Departments');
+    expect(admin).not.toContain('Positions');
+  });
+
+  it('opens a parent entry on the first sub-entry the person has', () => {
+    const groups = buildSidebarNavigation({
+      accountType: 'employee',
+      capabilities: [{ action: 'approvals:decide', scope: 'team' }],
+    });
+    const deals = groups.flatMap((group) => group.items).find((item) => item.label === 'Deals');
+    expect(deals?.path).toBe('/company/sales/approvals');
+    expect(deals?.children?.map((child) => child.label)).toEqual(['Approvals']);
+  });
+});
+
 describe('isDestinationModuleEnabled', () => {
-  it('judges a deep route by the registry entry that owns it', () => {
+  it('judges a deep route by the screen that owns it', () => {
     expect(isDestinationModuleEnabled('/company/payroll/runs/2026-11', ['identity'])).toBe(false);
     expect(isDestinationModuleEnabled('/company/payroll/runs/2026-11', ['payroll'])).toBe(true);
   });
 
-  it('allows paths the registry does not know and an unknown module list', () => {
+  it('allows paths no screen owns and an unknown module list', () => {
     expect(isDestinationModuleEnabled('/company/something-new', ['identity'])).toBe(true);
     expect(isDestinationModuleEnabled('/company/payroll/runs', undefined)).toBe(true);
   });

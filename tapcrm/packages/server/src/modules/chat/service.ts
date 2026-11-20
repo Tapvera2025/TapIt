@@ -523,8 +523,9 @@ export async function deliverMessage(
     `),
   ]);
   if (conversation) {
-    await notifyNewMessage(tx, ctx, { id: conversationId, ...conversation }, senderName, messageSummary(input.body, files), inserted.id, memberIds);
     const mentioned = (input.mentionedUserIds ?? []).filter((id) => memberIds.includes(id));
+    const otherMembers = memberIds.filter((id) => !mentioned.includes(id));
+    await notifyNewMessage(tx, ctx, { id: conversationId, ...conversation }, senderName, messageSummary(input.body, files), inserted.id, otherMembers);
     if (mentioned.length > 0) {
       await notifyMention(tx, ctx, { id: conversationId, ...conversation }, senderName, inserted.id, mentioned);
     }

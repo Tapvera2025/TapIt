@@ -559,6 +559,53 @@ describe('Safe failures and genuine analytics', () => {
     expect(textValue(error)).not.toContain('secret token');
   });
 
+  it("keeps the platform's own reason for a rejected request, without tokens", async () => {
+    const token = `EAAB${'x'.repeat(60)}`;
+    mockFetch(
+      response(
+        {
+          error: {
+            message: `Invalid parameter for ${token}`,
+            code: 100,
+            error_subcode: 2207009,
+            error_user_title: 'Unsupported aspect ratio',
+            error_user_msg: 'The aspect ratio is not supported.',
+          },
+        },
+        400,
+      ),
+    );
+    const error = await request('https://graph.facebook.com/v24.0/1/media').catch(
+      (value: unknown) => value,
+    );
+    expect(error).toMatchObject({ code: 'PLATFORM_REQUEST_FAILED' });
+    const message = (error as Error).message;
+    expect(message).toMatch(/^The platform rejected the request\./);
+    expect(message).toContain('The aspect ratio is not supported.');
+    expect(message).toContain('(code 100, subcode 2207009)');
+    expect(message).toContain('[redacted]');
+    expect(textValue(error)).not.toContain(token);
+  });
+
+  it("names Instagram's reason when it cannot process the media", async () => {
+    mockFetch(
+      response({ id: 'container-1' }),
+      response({
+        status_code: 'ERROR',
+        status: 'Error: Media upload has failed with error code 2207026',
+      }),
+    );
+    const publish = input('instagram');
+    publish.content.media = [
+      { url: 'https://cdn.example.com/1.jpg', mimeType: 'image/jpeg' },
+    ];
+    const error = await new MetaProvider('instagram', config)
+      .publishPost(publish)
+      .catch((value: unknown) => value);
+    expect(error).toMatchObject({ code: 'MEDIA_PROCESSING_FAILED' });
+    expect((error as Error).message).toContain('error code 2207026');
+  });
+
   it('exposes unsupported GBP post analytics and LinkedIn member analytics explicitly', async () => {
     const fetch = mockFetch();
     const params = {

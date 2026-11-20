@@ -17,6 +17,7 @@ import {
   updateDealStage,
 } from './service.js';
 import { createLead } from '../leads/service.js';
+import { registerLeadPolicies } from '../leads/policy.js';
 import { DEAL_ERROR_CODES, DealStateError } from './state-machine.js';
 
 /**
@@ -122,6 +123,7 @@ async function createOpenDeal(ctx = ctxFor(employee(AGENT))): Promise<string> {
 describe.skipIf(!enabled)('sales deals service (PostgreSQL)', () => {
   beforeAll(async () => {
     installAuthz();
+    registerLeadPolicies();
     await asOwner(
       'create organization',
       sql`INSERT INTO organization (id, code, name, timezone) VALUES (${ORG}, ${`SD${RUN}`}, 'Sales Deals Test', 'Asia/Kolkata')`,
@@ -174,6 +176,7 @@ describe.skipIf(!enabled)('sales deals service (PostgreSQL)', () => {
   });
 
   afterAll(async () => {
+    await asOwner('cleanup notification outbox', sql`DELETE FROM notification_outbox WHERE organization_id = ${ORG}`);
     await asOwner('cleanup audit outbox',  sql`DELETE FROM audit_outbox WHERE organization_id = ${ORG}`);
     await asOwner('cleanup deal contacts', sql`DELETE FROM deal_contact WHERE organization_id = ${ORG}`);
     await asOwner('cleanup deals',         sql`DELETE FROM deal         WHERE organization_id = ${ORG}`);
@@ -280,7 +283,7 @@ describe.skipIf(!enabled)('sales deals service (PostgreSQL)', () => {
       {
         actorId: SUPER_ADMIN,
         metadata: {
-          from: 'assigned',
+          from: 'contacted',
           dealId: deal.id,
           dealNumber: deal.dealNumber,
           title: 'Showroom fit-out',

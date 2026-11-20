@@ -1,34 +1,10 @@
 import { useEffect, useState } from 'react';
-import { currencySymbol, paiseToRupees } from './proposals-helpers.js';
-import { Button, GlassSurface } from '../../../ui/index.js';
+import { Button, GlassSurface, Icon } from '../../../ui/index.js';
 import { ErrorToast } from '../../../ui/ErrorToast.js';
-
-interface PublicProposal {
-  readonly commercialsId: string;
-  readonly dealTitle: string;
-  readonly version: number;
-  readonly currency: string;
-  readonly subtotalMinor: string;
-  readonly discountMinor: string;
-  readonly taxMinor: string;
-  readonly totalMinor: string;
-  readonly advanceMinor: string;
-  readonly validityAt: string | null;
-  readonly scope: string | null;
-  readonly exclusions: string | null;
-  readonly timeline: string | null;
-  readonly terms: string | null;
-  readonly items: ReadonlyArray<{
-    readonly serviceName: string;
-    readonly description: string | null;
-    readonly quantity: string;
-    readonly lineTotalMinor: string;
-  }>;
-  readonly acceptedAt: string | null;
-}
+import { ProposalDocument, type ProposalDocumentData } from './ProposalDocument.js';
 
 interface Fetched {
-  readonly data?: PublicProposal;
+  readonly data?: ProposalDocumentData;
   readonly error?: string;
 }
 
@@ -42,13 +18,14 @@ export function PublicProposalPage({ token }: { token: string }): React.JSX.Elem
 
   useEffect(() => {
     let cancelled = false;
+    setState({});
     fetch(`/api/public/proposals/${encodeURIComponent(token)}`)
       .then(async (res) => {
         if (!res.ok) {
           const body = (await res.json().catch(() => ({}))) as { message?: string };
           throw new Error(body.message ?? `Proposal unavailable (status ${res.status}).`);
         }
-        return (await res.json()) as { data: PublicProposal };
+        return (await res.json()) as { data: ProposalDocumentData };
       })
       .then((body) => {
         if (!cancelled) setState({ data: body.data });
@@ -74,75 +51,19 @@ export function PublicProposalPage({ token }: { token: string }): React.JSX.Elem
       <GlassSurface className="mx-auto max-w-xl rounded-2xl p-8 text-center text-sm text-app-muted">Loading proposal…</GlassSurface>
     );
   }
-  const p = state.data;
-  const symbol = currencySymbol(p.currency);
-
+  const proposal = state.data;
   return (
-    <GlassSurface className="mx-auto max-w-3xl rounded-2xl p-6 text-app-foreground sm:p-10">
-      <header>
-        <p className="text-xs font-bold uppercase tracking-wider text-app-accent">Proposal</p>
-        <h1 className="mt-2 font-display text-3xl font-bold">{p.dealTitle}</h1>
-        <p className="mt-1 text-sm text-app-muted">
-          Version {p.version}
-          {p.validityAt ? ` · valid until ${new Date(p.validityAt).toLocaleDateString()}` : ''}
-        </p>
-      </header>
-
-      <GlassSurface className="mt-8 rounded-xl p-5">
-        <h2 className="font-display text-lg font-bold">Line items</h2>
-        <table className="mt-3 w-full text-sm">
-          <thead className="text-left text-xs font-semibold uppercase text-app-muted">
-            <tr>
-              <th className="py-2">Service</th>
-              <th className="py-2 text-right">Qty</th>
-              <th className="py-2 text-right">Amount</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-app-border">
-            {p.items.map((item, i) => (
-              <tr key={i}>
-                <td className="py-2">
-                  <p className="font-semibold">{item.serviceName}</p>
-                  {item.description && (
-                    <p className="mt-1 text-xs text-app-muted">{item.description}</p>
-                  )}
-                </td>
-                <td className="py-2 text-right">{item.quantity}</td>
-                <td className="py-2 text-right font-semibold">
-                  {symbol}
-                  {paiseToRupees(BigInt(item.lineTotalMinor))}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </GlassSurface>
-
-      <GlassSurface className="mt-6 grid gap-3 rounded-xl p-5 text-sm sm:grid-cols-2">
-        <Fact label="Subtotal" value={`${symbol}${paiseToRupees(BigInt(p.subtotalMinor))}`} />
-        <Fact label="Discount" value={`${symbol}${paiseToRupees(BigInt(p.discountMinor))}`} />
-        <Fact label="Tax" value={`${symbol}${paiseToRupees(BigInt(p.taxMinor))}`} />
-        <Fact label="Advance expected" value={`${symbol}${paiseToRupees(BigInt(p.advanceMinor))}`} />
-        <Fact
-          label="Total"
-          value={`${symbol}${paiseToRupees(BigInt(p.totalMinor))}`}
-          emphasize
-        />
-      </GlassSurface>
-
-      {p.scope && <Section label="Scope">{p.scope}</Section>}
-      {p.exclusions && <Section label="Exclusions">{p.exclusions}</Section>}
-      {p.timeline && <Section label="Timeline">{p.timeline}</Section>}
-      {p.terms && <Section label="Terms">{p.terms}</Section>}
-
-      {p.acceptedAt ? (
-        <p className="mt-6 rounded-lg bg-emerald-500/15 p-3 text-sm text-emerald-700 dark:text-emerald-300">
-          Accepted {new Date(p.acceptedAt).toLocaleString()}
-        </p>
-      ) : (
-        <PublicProposalActions token={token} onAccepted={(at) => setState({ data: { ...p, acceptedAt: at } })} />
-      )}
-    </GlassSurface>
+    <main className="proposal-public-page">
+      <div className="proposal-print-toolbar">
+        <Button kind="secondary" onClick={() => window.print()}>
+          <Icon name="download" className="size-4" /> Print or save as PDF
+        </Button>
+      </div>
+      <ProposalDocument
+        proposal={proposal}
+        response={<PublicProposalActions token={token} onAccepted={(at) => setState({ data: { ...proposal, acceptedAt: at } })} />}
+      />
+    </main>
   );
 }
 
@@ -198,23 +119,23 @@ function PublicProposalActions({ token, onAccepted }: { token: string; onAccepte
   }
 
   return (
-    <GlassSurface className="mt-6 rounded-xl p-5">
-      <h2 className="font-display text-lg font-bold">Your response</h2>
-      <p className="mt-1 text-xs text-app-muted">
+    <div className="proposal-document-response">
+      <p className="mt-1 text-xs text-[var(--proposal-muted)]">
         Accept to confirm the proposal, or send a question / change request for the team to review.
       </p>
-      <label className="mt-3 block text-xs font-semibold text-app-muted">
+      <label className="mt-3 block text-xs font-semibold text-[var(--proposal-muted)]">
         <span className="mb-1 block">Comment (optional for accept, required for a question)</span>
         <textarea
           value={comment}
           onChange={(event) => setComment(event.target.value)}
           rows={3}
+          maxLength={2000}
           className="ui-form-control p-2 text-sm"
           placeholder="Share any notes, questions, or requested changes."
         />
       </label>
       {error && <ErrorToast message={error} />}
-      {sent && <p className="mt-3 text-sm text-emerald-700 dark:text-emerald-300">{sent}</p>}
+      {sent && <p className="mt-3 text-sm text-emerald-700">{sent}</p>}
       <div className="mt-4 flex flex-wrap gap-3">
         <Button
           kind="primary"
@@ -233,26 +154,6 @@ function PublicProposalActions({ token, onAccepted }: { token: string; onAccepte
           {busy === 'question' ? 'Sending…' : 'Request changes'}
         </Button>
       </div>
-    </GlassSurface>
-  );
-}
-
-function Fact({ label, value, emphasize = false }: { label: string; value: string; emphasize?: boolean }): React.JSX.Element {
-  return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-app-muted">{label}</p>
-      <p className={`mt-1 ${emphasize ? 'font-display text-xl font-bold' : 'font-semibold'}`}>
-        {value}
-      </p>
     </div>
-  );
-}
-
-function Section({ label, children }: { label: string; children: React.ReactNode }): React.JSX.Element {
-  return (
-    <GlassSurface className="mt-6 rounded-xl p-5">
-      <h2 className="font-display text-lg font-bold">{label}</h2>
-      <p className="mt-2 whitespace-pre-wrap text-sm">{children}</p>
-    </GlassSurface>
   );
 }

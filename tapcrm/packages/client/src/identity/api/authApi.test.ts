@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import {
   getIdentitySessionSnapshot,
+  IDENTITY_BOOTSTRAP_UPDATED_EVENT,
   identityRequest,
   saveIdentityTokens,
   setIdentitySessionPrincipal,
+  shouldRefreshIdentityAfter,
 } from './authApi.js';
 
 function memoryStorage(): Storage {
@@ -101,4 +103,38 @@ it('keeps other requests valid while an expired access token is renewed, renewin
   waitingWithOldToken[1]?.(refused());
   expect(await second).toEqual({ sentWith: 'Bearer fresh' });
   expect(renewals).toBe(1);
+});
+
+it('refreshes the workspace identity after any refusal the engine sends', () => {
+  // The engine's own wording: none of these say "permission".
+  expect(shouldRefreshIdentityAfter(403, 'No policy grants payroll:view to this principal.')).toBe(true);
+  expect(shouldRefreshIdentityAfter(403, 'user:42 is outside this principal\'s team scope.')).toBe(true);
+  expect(shouldRefreshIdentityAfter(403, 'Module "payroll" is not enabled for this organization')).toBe(true);
+  // A suspended company signs the person out instead; other statuses say nothing about powers.
+  expect(shouldRefreshIdentityAfter(403, 'Company access is suspended')).toBe(false);
+  expect(shouldRefreshIdentityAfter(404, 'Not found')).toBe(false);
+  expect(shouldRefreshIdentityAfter(422, 'Not eligible')).toBe(false);
+});
+
+it('asks the workspace to reload its powers when a request is refused', async () => {
+  const page = new EventTarget();
+  let reloads = 0;
+  page.addEventListener(IDENTITY_BOOTSTRAP_UPDATED_EVENT, () => { reloads += 1; });
+  vi.stubGlobal('window', page);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({ success: false, code: 'FORBIDDEN', message: 'No policy grants payroll:view to this principal.' }),
+          { status: 403, headers: { 'content-type': 'application/json' } },
+        ),
+      ),
+    ),
+  );
+  saveIdentityTokens('token-A', 'refresh-A');
+  setIdentitySessionPrincipal('A', 'org-A');
+
+  await expect(identityRequest('/api/payroll/payslips/mine')).rejects.toThrow(/No policy grants/);
+  expect(reloads).toBe(1);
 });

@@ -531,7 +531,8 @@ export function AttendanceReportPage({ canExport = false, canViewLive = false }:
         <div className="space-y-3 p-3 md:hidden">
           {dailyRows.map((row) => {
             const isWorking = date === now && Boolean(row.arrivalAt) && !row.departureAt;
-            const liveRow = liveRows?.get(row.id);
+            const boardRow = liveRows?.get(row.id);
+            const liveRow = boardRow?.workDate === date ? boardRow : undefined;
             const status = mobileDailyStatus(row, isWorking, liveRow);
             const liveTime = liveRow ? liveMinutes(liveRow, clockNow) : null;
             const hasPunch = Boolean(row.arrivalAt || row.departureAt);

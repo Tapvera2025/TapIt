@@ -3,9 +3,8 @@ import { sql } from '../../platform/dal/sql.js';
 import type { OutboxPayload } from './types.js';
 
 /**
- * Audience resolution — NT-1: "an audience resolved through the authorization
- * engine. A notification is never sent to someone who could not open the thing
- * it points at."
+ * Audience resolution. Callers select the people involved in the event.
+ * A holders audience also checks whether each candidate holds the action.
  *
  * Runs inside the dispatcher's tenant transaction, so RLS already confines
  * every query to one organization; the explicit organization_id predicates are
@@ -53,33 +52,44 @@ export async function resolveAudience(
     rows.forEach((r) => recipients.add(r.id));
   }
 
-  if (audience.holders) {
-    const { action, departmentId, teamId } = audience.holders;
+  if (audience.superAdmins) {
+    const rows = await tx.query<{ id: string }>(sql`
+      SELECT id FROM app_user
+      WHERE organization_id = ${organizationId}
+        AND status = 'active' AND account_type = 'super-admin'
+    `);
+    rows.forEach((r) => recipients.add(r.id));
+  }
+
+  const holders = audience.holders ?? [];
+  for (const { action, departmentId, teamId, userIds, scope } of Array.isArray(holders) ? holders : [holders]) {
     // Mirrors platform/authz-adapter `resolveSet`: an unexpired, unrevoked
     // override REPLACES the position's policy for that action (§4.4), whether
     // it allows or denies. Super Admin holds everything (globalAccess).
     const rows = await tx.query<{ id: string }>(sql`
       SELECT u.id FROM app_user u
+      LEFT JOIN LATERAL (
+        SELECT o.allowed, o.scope
+          FROM user_override o
+         WHERE o.organization_id = u.organization_id AND o.user_id = u.id
+           AND o.action = ${action}
+           AND o.revoked_at IS NULL
+           AND (o.expires_at IS NULL OR o.expires_at > now())
+         ORDER BY o.granted_at DESC LIMIT 1
+      ) override_policy ON TRUE
+      LEFT JOIN position_policy p
+        ON p.organization_id = u.organization_id AND p.position_id = u.position_id AND p.action = ${action}
       WHERE u.organization_id = ${organizationId}
         AND u.status = 'active'
+        AND (${userIds ?? null}::uuid[] IS NULL OR u.id = ANY(${userIds ?? null}::uuid[]))
         AND (${departmentId ?? null}::uuid IS NULL OR u.department_id = ${departmentId ?? null}::uuid)
         AND (${teamId ?? null}::uuid IS NULL OR u.team_id = ${teamId ?? null}::uuid)
         AND (
           u.account_type = 'super-admin'
           OR (
             u.account_type = 'employee'
-            AND COALESCE(
-              (SELECT o.allowed FROM user_override o
-                WHERE o.organization_id = u.organization_id AND o.user_id = u.id
-                  AND o.action = ${action}
-                  AND o.revoked_at IS NULL
-                  AND (o.expires_at IS NULL OR o.expires_at > now())
-                ORDER BY o.granted_at DESC LIMIT 1),
-              (SELECT p.allowed FROM position_policy p
-                WHERE p.organization_id = u.organization_id
-                  AND p.position_id = u.position_id AND p.action = ${action}),
-              false
-            )
+            AND COALESCE(override_policy.allowed, p.allowed, false)
+            AND (${scope ?? null}::text IS NULL OR COALESCE(override_policy.scope, p.scope) = ${scope ?? null})
           )
         )
     `);

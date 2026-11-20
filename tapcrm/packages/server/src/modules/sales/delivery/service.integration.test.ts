@@ -173,6 +173,7 @@ describe.skipIf(!enabled)('sales delivery brief service (PostgreSQL)', () => {
   });
 
   afterAll(async () => {
+    await asOwner('cleanup notification outbox', sql`DELETE FROM notification_outbox WHERE organization_id = ${ORG}`);
     await asOwner('cleanup audit outbox', sql`DELETE FROM audit_outbox      WHERE organization_id = ${ORG}`);
     await asOwner('cleanup briefs',       sql`DELETE FROM delivery_brief    WHERE organization_id = ${ORG}`);
     await asOwner('cleanup project assignees', sql`DELETE FROM project_assignee WHERE organization_id = ${ORG}`);

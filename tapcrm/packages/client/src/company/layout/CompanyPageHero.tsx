@@ -31,6 +31,7 @@ const DESCRIPTION_BY_TITLE: Readonly<Record<string, string>> = {
   Setup: 'Configure Sales routing, lead sources and calling integrations.',
   'All Leads': 'Work with leads across your company workspace.',
   'Lead Pool': 'Review inbound leads waiting for a claim.',
+  'Lead Pool (Live)': 'Review time-sensitive inbound leads waiting for a claim.',
   'Inactive Leads': 'Review leads that need renewed attention.',
   'Follow-up Required': 'Keep follow-ups moving across your lead pipeline.',
   'Needs Review': 'Review leads waiting for your team\'s attention.',

@@ -12,6 +12,8 @@ import { notify } from './facade.js';
 import { registerNotificationRoutes } from './routes.js';
 import { dispatchOrganization } from './dispatcher.js';
 import { countUnread, listForRecipient, markAllReadForRecipient, markOneRead, pruneExpired } from './repository.js';
+import { remindOverdueTasks } from '../tasks/jobs.js';
+import { remindOverdueOnboarding } from '../onboarding/jobs.js';
 
 /**
  * Runs the notification engine against REAL PostgreSQL through the runtime
@@ -122,7 +124,7 @@ describe.skipIf(!enabled)('notification engine (PostgreSQL)', () => {
 
   afterAll(async () => {
     const orgs = [orgA, orgB];
-    for (const table of ['identity_email_directory', 'notification_delivery', 'notification', 'notification_outbox', 'user_override', 'app_user', 'position_policy', 'position', 'department']) {
+    for (const table of ['task', 'onboarding_workflow', 'identity_email_directory', 'notification_delivery', 'notification', 'notification_outbox', 'user_override', 'app_user', 'position_policy', 'position', 'department']) {
       await asOwner(`cleanup ${table}`, sql`DELETE FROM ${sql.raw(table)} WHERE organization_id = ANY(${orgs}::uuid[])`);
     }
     await asOwner('cleanup orgs', sql`DELETE FROM organization WHERE id = ANY(${orgs}::uuid[])`);
@@ -130,6 +132,19 @@ describe.skipIf(!enabled)('notification engine (PostgreSQL)', () => {
   });
 
   const actor = () => ctxFor(orgA, admin);
+  const worker = () => createRequestContext({
+    organizationId: orgA,
+    requestId: 'test-reminders',
+    principal: {
+      id: '00000000-0000-0000-0000-000000000000',
+      organizationId: orgA,
+      accountType: 'service',
+      sessionVersion: 0,
+      allowedActions: [],
+      allowedResources: [],
+      expiresAt: new Date(0),
+    },
+  });
   const recipientsOf = async (type: string): Promise<string[]> => {
     const rows = await asOwner<{ recipientId: string }>(
       'read',
@@ -177,6 +192,72 @@ describe.skipIf(!enabled)('notification engine (PostgreSQL)', () => {
     await db.transaction(actor(), (tx) => notify(tx, actor(), { type: 'test.actor', audience: { users: [admin, alice] }, title: 'x' }));
     await dispatchOrganization(orgA);
     expect(await recipientsOf('test.actor')).toEqual([alice]);
+  });
+
+  it('unions candidate groups only when the candidate holds the action', async () => {
+    await db.transaction(actor(), (tx) => notify(tx, actor(), {
+      type: 'test.holder_groups',
+      title: 'Review pending',
+      audience: {
+        superAdmins: true,
+        includeActor: true,
+        holders: [
+          { action: ACTION, userIds: [alice, bob, carol] },
+          { action: ACTION, userIds: [alice, dave, eve, outsider] },
+        ],
+      },
+    }));
+    await dispatchOrganization(orgA);
+    expect(await recipientsOf('test.holder_groups')).toEqual([admin, alice, dave].sort());
+  });
+
+  it('sends overdue task reminders once per local day to open assignees and assigners', async () => {
+    const taskId = randomUUID();
+    await asOwner('seed overdue task', sql`
+      INSERT INTO task (id, organization_id, title, created_by, due_date)
+      VALUES (${taskId}, ${orgA}, 'Check the draft', ${admin}, '2026-11-19T18:00:00Z')
+    `);
+    await asOwner('seed task assignees', sql`
+      INSERT INTO task_assignee (organization_id, task_id, user_id, assigned_by, status)
+      VALUES (${orgA}, ${taskId}, ${bob}, ${dave}, 'pending'),
+             (${orgA}, ${taskId}, ${alice}, ${admin}, 'completed')
+    `);
+    await remindOverdueTasks(worker(), new Date('2026-11-19T18:29:00Z'));
+    expect(await dispatchOrganization(orgA)).toBe(0);
+
+    const midnight = new Date('2026-11-19T18:30:00Z');
+    await Promise.all([remindOverdueTasks(worker(), midnight), remindOverdueTasks(worker(), midnight)]);
+    expect(await dispatchOrganization(orgA)).toBe(3);
+    expect(await recipientsOf('task.overdue')).toEqual([admin, bob, dave].sort());
+
+    await asOwner('complete the task', sql`UPDATE task SET status = 'completed' WHERE id = ${taskId}`);
+    await remindOverdueTasks(worker(), new Date('2026-11-20T18:30:00Z'));
+    expect(await dispatchOrganization(orgA)).toBe(0);
+  });
+
+  it('reminds an overdue onboarding owner and HR once per local day', async () => {
+    const workflowId = randomUUID();
+    await asOwner('grant onboarding management', sql`
+      INSERT INTO position_policy (organization_id, position_id, action, allowed, scope)
+      VALUES (${orgA}, ${positionA}, 'onboarding:manage', true, 'all-people')
+    `);
+    await asOwner('grant scoped onboarding management', sql`
+      INSERT INTO user_override (organization_id, user_id, action, allowed, scope, reason, granted_by)
+      VALUES (${orgA}, ${dave}, 'onboarding:manage', true, 'team', 'test', ${admin})
+    `);
+    await asOwner('seed onboarding workflow', sql`
+      INSERT INTO onboarding_workflow (id, organization_id, employee_id, created_by)
+      VALUES (${workflowId}, ${orgA}, ${dave}, ${admin})
+    `);
+    await asOwner('seed onboarding steps', sql`
+      INSERT INTO onboarding_step (organization_id, workflow_id, code, title, owner_id, status, due_date, step_order)
+      VALUES (${orgA}, ${workflowId}, 'PENDING', 'Follow up on paperwork', ${bob}, 'pending', '2026-11-19', 1),
+             (${orgA}, ${workflowId}, 'DONE', 'Set up account', ${bob}, 'completed', '2026-11-19', 2)
+    `);
+    const time = new Date('2026-11-19T18:30:00Z');
+    await Promise.all([remindOverdueOnboarding(worker(), time), remindOverdueOnboarding(worker(), time)]);
+    expect(await dispatchOrganization(orgA)).toBe(4);
+    expect(await recipientsOf('onboarding.step_overdue')).toEqual([admin, alice, bob, carol].sort());
   });
 
   it('never leaks across tenants: a foreign user id in the audience is dropped', async () => {

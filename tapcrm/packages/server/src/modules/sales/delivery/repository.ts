@@ -80,6 +80,7 @@ export interface LockedBrief {
   readonly id: string;
   readonly dealId: string;
   readonly commercialsId: string;
+  readonly createdBy: string;
   readonly state: DeliveryBriefState;
   readonly projectId: string | null;
   readonly acceptedAt: Date | null;
@@ -91,6 +92,7 @@ export async function lockBrief(tx: Tx, organizationId: string, id: string): Pro
     SELECT id,
            deal_id        AS "dealId",
            commercials_id AS "commercialsId",
+           created_by     AS "createdBy",
            state,
            project_id     AS "projectId",
            accepted_at    AS "acceptedAt",

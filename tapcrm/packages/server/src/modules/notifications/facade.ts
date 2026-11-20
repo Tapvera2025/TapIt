@@ -43,8 +43,9 @@ export async function notify(tx: Tx, ctx: Pick<RequestContext, 'organizationId' 
   });
 
   await tx.query(sql`
-    INSERT INTO notification_outbox (organization_id, payload)
-    VALUES (${ctx.organizationId}, ${JSON.stringify(payload)}::jsonb)
+    INSERT INTO notification_outbox (organization_id, payload, deduplication_key)
+    VALUES (${ctx.organizationId}, ${JSON.stringify(payload)}::jsonb, ${input.deduplicationKey ?? null})
+    ON CONFLICT (organization_id, deduplication_key) WHERE deduplication_key IS NOT NULL DO NOTHING
   `);
 }
 

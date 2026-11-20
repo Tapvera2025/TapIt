@@ -118,6 +118,7 @@ describe.skipIf(!enabled)('callback and handover lists (PostgreSQL)', () => {
   });
 
   afterAll(async () => {
+    await asOwner('cleanup notification outbox', sql`DELETE FROM notification_outbox WHERE organization_id = ${ORG}`);
     await asOwner(
       'cleanup notifications',
       sql`DELETE FROM notification_outbox WHERE organization_id = ${ORG}`,
