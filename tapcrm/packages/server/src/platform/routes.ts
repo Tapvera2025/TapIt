@@ -26,6 +26,7 @@ import {
   revokeInvitationController,
 } from './invitations/controller.js';
 import { dashboardController, statsController } from './dashboard/controller.js';
+import { getMailController, listMailController, retryMailController } from './mail/controller.js';
 
 /** Exact platform routes agreed for the Master Admin control plane. */
 export function buildPlatformRouter(): Router {
@@ -37,6 +38,10 @@ export function buildPlatformRouter(): Router {
   router.get('/dashboard/stats', statsController);
   router.get('/invitations', listInvitationController);
   router.post('/invitations/:id/revoke', revokeInvitationController);
+
+  router.get('/mail', listMailController);
+  router.get('/mail/:id', getMailController);
+  router.post('/mail/:id/retry', retryMailController);
 
   router.get('/modules', catalogController);
 
