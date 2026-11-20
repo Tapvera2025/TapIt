@@ -22,13 +22,17 @@ function useAnchoredPopoverPosition(
       return;
     }
     const place = () => {
-      const anchor = anchorRef.current?.getBoundingClientRect();
+      const anchorElement = anchorRef.current;
       const panel = panelRef.current;
-      if (!anchor || !panel) return;
-
       const edge = 12;
       const gap = 8;
-      const boundary = anchorRef.current?.closest<HTMLElement>('dialog[open], [role="dialog"]');
+      if (!anchorElement) {
+        const width = Math.max(80, Math.min(preferredWidth, window.innerWidth - edge * 2));
+        setPosition({ left: edge, top: edge, width, maxHeight: Math.max(80, window.innerHeight - edge * 2) });
+        return;
+      }
+      const anchor = anchorElement.getBoundingClientRect();
+      const boundary = anchorElement.closest<HTMLElement>('dialog[open], [role="dialog"]');
       const boundaryRect = boundary?.getBoundingClientRect();
       const minLeft = Math.max(edge, (boundaryRect?.left ?? 0) + edge);
       const maxRight = Math.min(window.innerWidth - edge, (boundaryRect?.right ?? window.innerWidth) - edge);
@@ -39,7 +43,7 @@ function useAnchoredPopoverPosition(
       const viewportLeft = Math.max(minLeft, Math.min(anchor.left, maxRight - width));
       const belowSpace = Math.max(0, maxBottom - anchor.bottom - gap);
       const aboveSpace = Math.max(0, anchor.top - minTop - gap);
-      const naturalHeight = panel.scrollHeight;
+      const naturalHeight = panel?.scrollHeight || 380;
       const placeAbove = belowSpace < naturalHeight && aboveSpace > belowSpace;
       const availableHeight = Math.max(80, maxBottom - minTop);
       const maxHeight = Math.min(naturalHeight, availableHeight);
@@ -49,10 +53,10 @@ function useAnchoredPopoverPosition(
       // against its containing block, which is the viewport on a plain page but
       // the window itself inside a modal (the modal is centred with a
       // transform). Measure where the panel's left/top origin really is.
-      const panelRect = panel.getBoundingClientRect();
-      const panelStyle = window.getComputedStyle(panel);
-      const originX = panelRect.left - (Number.parseFloat(panelStyle.left) || 0);
-      const originY = panelRect.top - (Number.parseFloat(panelStyle.top) || 0);
+      const panelRect = panel?.getBoundingClientRect();
+      const panelStyle = panel ? window.getComputedStyle(panel) : null;
+      const originX = panelRect && panelStyle ? panelRect.left - (Number.parseFloat(panelStyle.left) || 0) : 0;
+      const originY = panelRect && panelStyle ? panelRect.top - (Number.parseFloat(panelStyle.top) || 0) : 0;
       const left = viewportLeft - originX;
       const top = viewportTop - originY;
       setPosition((current) => current && current.left === left && current.top === top && current.width === width && current.maxHeight === maxHeight
@@ -61,14 +65,19 @@ function useAnchoredPopoverPosition(
     };
 
     place();
-    // Portalled panels can attach their ref one paint after the anchor's
-    // layout effect. Retry once after the portal has committed so the picker
-    // never remains stuck in its hidden measurement state.
+    // Portalled panels can attach their ref after the anchor's layout effect.
+    // Retry for two frames so the picker gets its measured position after mount.
     const frame = window.requestAnimationFrame(place);
+    let retryFrame = 0;
+    const firstRetryFrame = window.requestAnimationFrame(() => {
+      retryFrame = window.requestAnimationFrame(place);
+    });
     window.addEventListener('resize', place);
     window.addEventListener('scroll', place, true);
     return () => {
       window.cancelAnimationFrame(frame);
+      window.cancelAnimationFrame(firstRetryFrame);
+      window.cancelAnimationFrame(retryFrame);
       window.removeEventListener('resize', place);
       window.removeEventListener('scroll', place, true);
     };
@@ -83,6 +92,7 @@ export type CalendarPickerProps = Omit<InputHTMLAttributes<HTMLInputElement>, 't
   min?: string | undefined;
   max?: string | undefined;
   onChange: (event: PickerChangeEvent) => void;
+  variant?: 'input' | 'icon';
 };
 
 function dateKey(date: Date): string {
@@ -139,6 +149,7 @@ export function CalendarPicker({
   'aria-describedby': ariaDescribedBy,
   'aria-invalid': ariaInvalid,
   onKeyDown: onInputKeyDown,
+  variant = 'input',
   ...inputAttributes
 }: CalendarPickerProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
@@ -199,12 +210,132 @@ export function CalendarPicker({
       ? new Date(Number(month[1]), Number(month[2]) - 1, 1)
       : new Date());
     setVisibleMonth(new Date(current.getFullYear(), current.getMonth(), 1));
+    if (open) {
+      setOpen(false);
+      return;
+    }
     const dialog = rootRef.current?.closest<HTMLElement>('dialog[open]') ?? null;
     setPortalHost(dialog ? (rootRef.current?.closest<HTMLElement>('.ui-dialog-body') ?? dialog) : document.body);
     setOpen(true);
   }
 
   const panelClass = 'calendar-popover-scroll fixed z-[200] max-w-[calc(100vw-1.5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-app-border bg-app-surface p-3.5 shadow-xl sm:p-4';
+
+  const popover = open && createPortal((
+    <section
+      ref={panelRef}
+      role="dialog"
+      aria-label={accessibleLabel}
+      data-calendar-picker-popover="true"
+      className={panelClass}
+      style={popoverPosition ? {
+        left: popoverPosition.left,
+        top: popoverPosition.top,
+        width: popoverPosition.width,
+        maxHeight: popoverPosition.maxHeight,
+      } : { width: 320, visibility: 'hidden' }}
+    >
+      <header className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          aria-label={type === 'month' ? 'Previous year' : 'Previous month'}
+          onClick={() => setVisibleMonth((current) => new Date(current.getFullYear() - (type === 'month' ? 1 : 0), current.getMonth() - (type === 'date' ? 1 : 0), 1))}
+          className="grid size-8 place-items-center rounded-lg text-app-muted transition hover:bg-app-surface-raised hover:text-app-foreground"
+        >
+          <Icon name="chevron-left" className="size-4" />
+        </button>
+        <p className="text-sm font-semibold text-app-foreground">
+          {type === 'month'
+            ? visibleMonth.getFullYear()
+            : visibleMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+        </p>
+        <button
+          type="button"
+          aria-label={type === 'month' ? 'Next year' : 'Next month'}
+          onClick={() => setVisibleMonth((current) => new Date(current.getFullYear() + (type === 'month' ? 1 : 0), current.getMonth() + (type === 'date' ? 1 : 0), 1))}
+          className="grid size-8 place-items-center rounded-lg text-app-muted transition hover:bg-app-surface-raised hover:text-app-foreground"
+        >
+          <Icon name="chevron-right" className="size-4" />
+        </button>
+      </header>
+
+      {type === 'date' ? (
+        <>
+          <div className="mt-2 grid grid-cols-7 text-center text-[10px] font-semibold uppercase text-app-muted">
+            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => <span key={day} className="py-1.5">{day}</span>)}
+          </div>
+          <div className="grid grid-cols-7 gap-y-1 text-center">
+            {cells.map((date, index) => {
+              if (!date) return <span key={`blank-${index}`} />;
+              const key = dateKey(date);
+              const isSelected = key === value;
+              const isDisabled = !withinDateBounds(key, min, max);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={isDisabled}
+                  aria-label={date.toLocaleDateString()}
+                  aria-pressed={isSelected}
+                  onClick={() => emit(key)}
+                  className={`mx-auto grid size-8 place-items-center rounded-full text-xs transition ${isSelected ? 'bg-app-accent font-semibold text-app-on-accent' : 'text-app-foreground hover:bg-app-accent/10 hover:text-app-accent'} disabled:cursor-not-allowed disabled:opacity-30`}
+                >
+                  {date.getDate()}
+                </button>
+              );
+            })}
+          </div>
+          <footer className="mt-3 flex justify-between border-t border-app-border/70 pt-3">
+            <button type="button" onClick={() => emit('')} className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-app-muted hover:bg-app-surface-raised hover:text-app-foreground">Clear</button>
+            <button type="button" disabled={!withinDateBounds(dateKey(new Date()), min, max)} onClick={() => emit(dateKey(new Date()))} className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-app-accent hover:bg-app-accent/10 disabled:cursor-not-allowed disabled:opacity-40">Today</button>
+          </footer>
+        </>
+      ) : (
+        <div className="mt-3 grid grid-cols-3 gap-1.5">
+          {Array.from({ length: 12 }, (_, index) => {
+            const key = monthKey(visibleMonth.getFullYear(), index);
+            const disabledMonth = !withinDateBounds(key, min?.slice(0, 7), max?.slice(0, 7));
+            const selected = key === value;
+            return (
+              <button
+                key={key}
+                type="button"
+                disabled={disabledMonth}
+                aria-pressed={selected}
+                onClick={() => emit(key)}
+                className={`min-h-10 rounded-lg text-xs font-medium transition ${selected ? 'bg-app-accent text-app-on-accent' : 'text-app-foreground hover:bg-app-accent/10 hover:text-app-accent'} disabled:cursor-not-allowed disabled:opacity-30`}
+              >
+                {new Date(visibleMonth.getFullYear(), index, 1).toLocaleDateString(undefined, { month: 'short' })}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  ), portalHost ?? document.body);
+
+  if (variant === 'icon') {
+    return (
+      <div ref={rootRef} className="relative inline-flex shrink-0">
+        {name && <input type="hidden" name={name} value={value} disabled={disabled} />}
+        <button
+          type="button"
+          id={id}
+          aria-label={ariaLabel ?? accessibleLabel}
+          aria-labelledby={ariaLabelledBy}
+          aria-describedby={ariaDescribedBy}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          disabled={disabled}
+          onClick={openPicker}
+          className={className || 'grid size-10 shrink-0 place-items-center rounded-xl border border-app-border bg-app-surface-raised text-app-muted transition hover:border-app-accent/50 hover:text-app-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent disabled:cursor-not-allowed disabled:opacity-60'}
+        >
+          <Icon name="calendar" className="size-4" />
+        </button>
+        {popover}
+      </div>
+    );
+  }
 
   return (
     <div ref={rootRef} className="relative w-full">
@@ -231,8 +362,6 @@ export function CalendarPicker({
           // deleting are blocked by onBeforeInput below, and inputMode="none"
           // keeps the phone keyboard closed.
           onPointerDown={(event) => {
-            // A real pointer handler is more reliable than relying on the
-            // text input's synthetic click inside nested modal forms.
             event.preventDefault();
             openPicker();
           }}
@@ -261,97 +390,7 @@ export function CalendarPicker({
           <Icon name="calendar" className="size-4" />
         </button>
       </div>
-      {open && createPortal((
-        <section
-          ref={panelRef}
-          role="dialog"
-          aria-label={accessibleLabel}
-          className={panelClass}
-          style={popoverPosition ? {
-            left: popoverPosition.left,
-            top: popoverPosition.top,
-            width: popoverPosition.width,
-            maxHeight: popoverPosition.maxHeight,
-          } : { left: 0, top: 0, width: 320, visibility: 'hidden' }}
-        >
-          <header className="flex items-center justify-between gap-2">
-            <button
-              type="button"
-              aria-label={type === 'month' ? 'Previous year' : 'Previous month'}
-              onClick={() => setVisibleMonth((current) => new Date(current.getFullYear() - (type === 'month' ? 1 : 0), current.getMonth() - (type === 'date' ? 1 : 0), 1))}
-              className="grid size-8 place-items-center rounded-lg text-app-muted transition hover:bg-app-surface-raised hover:text-app-foreground"
-            >
-              <Icon name="chevron-left" className="size-4" />
-            </button>
-            <p className="text-sm font-semibold text-app-foreground">
-              {type === 'month'
-                ? visibleMonth.getFullYear()
-                : visibleMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-            </p>
-            <button
-              type="button"
-              aria-label={type === 'month' ? 'Next year' : 'Next month'}
-              onClick={() => setVisibleMonth((current) => new Date(current.getFullYear() + (type === 'month' ? 1 : 0), current.getMonth() + (type === 'date' ? 1 : 0), 1))}
-              className="grid size-8 place-items-center rounded-lg text-app-muted transition hover:bg-app-surface-raised hover:text-app-foreground"
-            >
-              <Icon name="chevron-right" className="size-4" />
-            </button>
-          </header>
-
-          {type === 'date' ? (
-            <>
-              <div className="mt-2 grid grid-cols-7 text-center text-[10px] font-semibold uppercase text-app-muted">
-                {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => <span key={day} className="py-1.5">{day}</span>)}
-              </div>
-              <div className="grid grid-cols-7 gap-y-1 text-center">
-                {cells.map((date, index) => {
-                  if (!date) return <span key={`blank-${index}`} />;
-                  const key = dateKey(date);
-                  const isSelected = key === value;
-                  const isDisabled = !withinDateBounds(key, min, max);
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      disabled={isDisabled}
-                      aria-label={date.toLocaleDateString()}
-                      aria-pressed={isSelected}
-                      onClick={() => emit(key)}
-                      className={`mx-auto grid size-8 place-items-center rounded-full text-xs transition ${isSelected ? 'bg-app-accent font-semibold text-app-on-accent' : 'text-app-foreground hover:bg-app-accent/10 hover:text-app-accent'} disabled:cursor-not-allowed disabled:opacity-30`}
-                    >
-                      {date.getDate()}
-                    </button>
-                  );
-                })}
-              </div>
-              <footer className="mt-3 flex justify-between border-t border-app-border/70 pt-3">
-                <button type="button" onClick={() => emit('')} className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-app-muted hover:bg-app-surface-raised hover:text-app-foreground">Clear</button>
-                <button type="button" disabled={!withinDateBounds(dateKey(new Date()), min, max)} onClick={() => emit(dateKey(new Date()))} className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-app-accent hover:bg-app-accent/10 disabled:cursor-not-allowed disabled:opacity-40">Today</button>
-              </footer>
-            </>
-          ) : (
-            <div className="mt-3 grid grid-cols-3 gap-1.5">
-              {Array.from({ length: 12 }, (_, index) => {
-                const key = monthKey(visibleMonth.getFullYear(), index);
-                const disabledMonth = !withinDateBounds(key, min?.slice(0, 7), max?.slice(0, 7));
-                const selected = key === value;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    disabled={disabledMonth}
-                    aria-pressed={selected}
-                    onClick={() => emit(key)}
-                    className={`min-h-10 rounded-lg text-xs font-medium transition ${selected ? 'bg-app-accent text-app-on-accent' : 'text-app-foreground hover:bg-app-accent/10 hover:text-app-accent'} disabled:cursor-not-allowed disabled:opacity-30`}
-                  >
-                    {new Date(visibleMonth.getFullYear(), index, 1).toLocaleDateString(undefined, { month: 'short' })}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      ), portalHost ?? document.body)}
+      {popover}
     </div>
   );
 }
@@ -366,6 +405,8 @@ export type DateRangeCalendarProps = {
   anchorRef?: ElementRef;
   className?: string;
   label?: string;
+  singleDate?: boolean;
+  portal?: boolean;
 };
 
 /** Shared custom range calendar used by the task filter and other date-range pickers. */
@@ -379,6 +420,8 @@ export function DateRangeCalendar({
   anchorRef,
   className,
   label = 'Select date range',
+  singleDate = false,
+  portal = false,
 }: DateRangeCalendarProps): React.JSX.Element | null {
   const initialDate = parseDateKey(startDate) ?? new Date();
   const [visibleMonth, setVisibleMonth] = useState(() => new Date(initialDate.getFullYear(), initialDate.getMonth(), 1));
@@ -392,6 +435,18 @@ export function DateRangeCalendar({
   }, [open]);
 
   if (!open) return null;
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const fallbackAnchor = (anchorRef ?? fallbackAnchorRef).current?.getBoundingClientRect();
+  const fallbackWidth = Math.max(80, Math.min(336, viewportWidth - 24));
+  const fallbackHeight = Math.max(80, Math.min(380, viewportHeight - 24));
+  const fallbackLeft = fallbackAnchor
+    ? Math.max(12, Math.min(fallbackAnchor.left, viewportWidth - fallbackWidth - 12))
+    : 12;
+  const fallbackTop = fallbackAnchor
+    ? Math.max(12, Math.min(fallbackAnchor.bottom + 8, viewportHeight - fallbackHeight - 12))
+    : 12;
+  const fallbackPosition = { left: fallbackLeft, top: fallbackTop, width: fallbackWidth, maxHeight: fallbackHeight };
   const firstDay = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1).getDay();
   const monthLength = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0).getDate();
   const cells: (Date | null)[] = [
@@ -401,6 +456,10 @@ export function DateRangeCalendar({
 
   function selectDate(date: Date) {
     const key = dateKey(date);
+    if (singleDate) {
+      onRangeChange(key, key);
+      return;
+    }
     if (!startDate || endDate) {
       onRangeChange(key, '');
     } else if (key < startDate) {
@@ -427,22 +486,23 @@ export function DateRangeCalendar({
     setVisibleMonth(new Date(start.getFullYear(), start.getMonth(), 1));
   }
 
-  return (
+  const calendar = (
     <section
       ref={panelRef}
       role="dialog"
       aria-label={label}
+      data-date-range-calendar="true"
       className={`calendar-popover-scroll ${className ?? 'fixed z-[70] overflow-y-auto overscroll-contain rounded-2xl border border-app-border bg-app-surface p-4 shadow-2xl'}`}
       style={popoverPosition ? {
         left: popoverPosition.left,
         top: popoverPosition.top,
         width: popoverPosition.width,
         maxHeight: popoverPosition.maxHeight,
-      } : { width: 336, visibility: 'hidden' }}
+      } : fallbackPosition}
     >
       <header className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-app-foreground">Select date range</h3>
-        <button type="button" onClick={() => onRangeChange('', '')} className="text-xs font-medium text-app-accent hover:underline">Clear</button>
+        <h3 className="text-sm font-semibold text-app-foreground">{label}</h3>
+        {!singleDate && <button type="button" onClick={() => onRangeChange('', '')} className="text-xs font-medium text-app-accent hover:underline">Clear</button>}
       </header>
       <div className="mt-3 flex items-center justify-between">
         <button type="button" aria-label="Previous month" onClick={() => setVisibleMonth((month) => new Date(month.getFullYear(), month.getMonth() - 1, 1))} className="grid size-8 place-items-center rounded-lg text-app-muted hover:bg-app-surface-raised hover:text-app-foreground"><Icon name="chevron-left" className="size-4" /></button>
@@ -471,15 +531,16 @@ export function DateRangeCalendar({
           );
         })}
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-1.5 border-t border-app-border/70 pt-3">
+      {!singleDate && <div className="mt-3 grid grid-cols-3 gap-1.5 border-t border-app-border/70 pt-3">
         {([['today', 'Today'], ['week', 'This Week'], ['month', 'This Month']] as const).map(([range, text]) => (
           <button key={range} type="button" onClick={() => selectQuickRange(range)} className="min-h-8 rounded-lg bg-app-surface-raised px-1.5 text-[10px] font-medium text-app-muted transition-colors hover:bg-app-accent/10 hover:text-app-accent sm:text-xs">{text}</button>
         ))}
-      </div>
+      </div>}
       <footer className="mt-3 flex items-center justify-end gap-2">
         <button type="button" onClick={onCancel} className="rounded-lg px-3 py-1.5 text-xs font-medium text-app-muted hover:bg-app-surface-raised hover:text-app-foreground">Cancel</button>
         <button type="button" disabled={!startDate || !endDate} onClick={onApply} className="rounded-lg bg-app-accent px-3 py-1.5 text-xs font-semibold text-app-on-accent transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">Apply</button>
       </footer>
     </section>
   );
+  return portal ? createPortal(calendar, document.body) : calendar;
 }
