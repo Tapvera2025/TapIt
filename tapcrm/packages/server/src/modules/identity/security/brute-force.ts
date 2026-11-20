@@ -4,8 +4,16 @@ import { IdentityAuthenticationError } from '../errors.js';
 
 const failures = new Map<string, { count: number; until: number }>();
 let redis: Redis | null = null;
-const MAX_FAILURES = 5;
+/**
+ * Failures before a lock. One ACCOUNT is guessed at, so it locks after 5. One ADDRESS
+ * is much looser: an office, a campus or a mobile carrier can put many honest people
+ * behind a single address, and five typos among them must not lock all of them out.
+ */
+export const MAX_ACCOUNT_FAILURES = 5;
+export const MAX_SOURCE_FAILURES = 30;
 const LOCKOUT_MS = 15 * 60 * 1000;
+
+const limitFor = (kind: 'account' | 'source'): number => (kind === 'account' ? MAX_ACCOUNT_FAILURES : MAX_SOURCE_FAILURES);
 
 function store() {
   if (loadConfig().SECURITY_COUNTER_STORE !== 'redis') return null;
@@ -19,7 +27,7 @@ function key(kind: 'account' | 'source', value: string): string {
 export async function assertLoginAllowed(email: string, ip: string | null): Promise<void> {
   const now = Date.now();
   let delayMs = 0;
-  for (const candidate of [key('account', email), key('source', ip ?? 'unknown')]) {
+  for (const [kind, candidate] of [['account', key('account', email)], ['source', key('source', ip ?? 'unknown')]] as const) {
     const client = store();
     if (client) {
       const until = await client.get(`${candidate}:lock`);
@@ -28,7 +36,7 @@ export async function assertLoginAllowed(email: string, ip: string | null): Prom
       delayMs = Math.max(delayMs, Math.min(count * 1000, 30_000));
     } else {
       const entry = failures.get(candidate);
-      if (entry && entry.count >= MAX_FAILURES && entry.until > now) throw new IdentityAuthenticationError('IDENTITY_ACCOUNT_LOCKED', undefined, 429);
+      if (entry && entry.count >= limitFor(kind) && entry.until > now) throw new IdentityAuthenticationError('IDENTITY_ACCOUNT_LOCKED', undefined, 429);
       if (entry && entry.until > now) delayMs = Math.max(delayMs, entry.until - now);
     }
   }
@@ -43,7 +51,7 @@ export async function recordLoginFailure(email: string, ip: string | null): Prom
     if (client) {
       const count = await client.incr(candidate);
       await client.expire(candidate, 900);
-      if (count >= MAX_FAILURES) {
+      if (count >= limitFor(kind)) {
         await client.set(`${candidate}:lock`, String(Date.now() + LOCKOUT_MS), 'EX', 900);
         locked = true;
         accountLocked ||= kind === 'account';
@@ -51,10 +59,10 @@ export async function recordLoginFailure(email: string, ip: string | null): Prom
     } else {
       const current = failures.get(candidate) ?? { count: 0, until: 0 };
       current.count += 1;
-      current.until = current.count >= MAX_FAILURES ? Date.now() + LOCKOUT_MS : Date.now() + Math.min(current.count * 1000, 30_000);
+      current.until = current.count >= limitFor(kind) ? Date.now() + LOCKOUT_MS : Date.now() + Math.min(current.count * 1000, 30_000);
       failures.set(candidate, current);
-      locked ||= current.count >= MAX_FAILURES;
-      accountLocked ||= kind === 'account' && current.count >= MAX_FAILURES;
+      locked ||= current.count >= limitFor(kind);
+      accountLocked ||= kind === 'account' && current.count >= limitFor(kind);
     }
   }
   return { locked, accountLocked };

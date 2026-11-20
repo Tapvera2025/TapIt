@@ -80,6 +80,11 @@ services:
       # Same container path as the base file's ./storage mount, so it replaces it.
       - ${UPLOAD_DATA_DIR:-/opt/tapcrm/data/uploads}:/app/storage
     environment:
+      # Two proxies in front of the API: cloudflared, then the client nginx. With 1 the
+      # API sees every visitor as cloudflared's address, so the per-address sign-in
+      # lockout (5 failures) is shared by everyone and one bad day locks the whole
+      # company out. 2 reads the real client address Cloudflare puts in the chain.
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-2}
       # Signed download links must point at an address browsers can reach.
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:?Set S3_PUBLIC_ENDPOINT in .env (https://files.<your-domain>)}
     depends_on:
